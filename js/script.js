@@ -999,7 +999,7 @@ async function uploadEvidencias() {
             };
             
             // Enviar a Google Apps Script
-            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrfCv4MjdqjmbHDGuh-VfjwO-5LK-jTlKtqjUNPXtVRfm9rAk4DKv091fbtP01KKKE/exec';
+            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyIG73lNAsmfV2Yk8_jIXhX49WsTucfz8lCC0-WWj4mysSX_8AGsgl84ZZp6s1tNGhQ/exec';
             
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
