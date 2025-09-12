@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Asistencia - CESPSIC</title>
+    
+    <!-- Google Sign-In API -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <meta name="google-signin-client_id" content="TU_GOOGLE_CLIENT_ID.apps.googleusercontent.com">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 20px;
+        }
+        
+        .logos {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+            width: 100%;
+        }
+        
+        .logo {
+            max-height: 100px;
+            max-width: 30%;
+            min-width: 120px;
+            object-fit: contain;
+            transition: transform 0.3s ease;
+            flex: 1;
+        }
+        
+        .logo:hover {
+            transform: scale(1.05);
+        }
+        
+        h1 {
+            color: #fff;
+            font-size: 1.4em;
+            line-height: 1.4;
+            margin-top: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            font-weight: bold;
+        }
+
+        /* Estilos para autenticación */
+        .auth-section {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border: 2px solid #64b5f6;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .auth-section.authenticated {
+            background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
+            border-color: #4caf50;
+        }
+
+        .auth-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .auth-title.authenticated {
+            color: #2e7d32;
+        }
+
+        .user-info {
+            display: none;
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .user-info.show {
+            display: block;
+        }
+
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin: 0 auto 10px;
+            display: block;
+            border: 2px solid #4caf50;
+        }
+
+        .user-email {
+            font-weight: 600;
+            color: #2e7d32;
+            font-size: 1.1em;
+        }
+
+        .user-name {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .google-signin-btn, .signout-btn {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            margin: 10px 5px;
+        }
+
+        .google-signin-btn:hover {
+            background: #3367d6;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
+        }
+
+        .signout-btn {
+            background: #dc3545;
+            font-size: 14px;
+            padding: 8px 16px;
+        }
+
+        .signout-btn:hover {
+            background: #c82333;
+        }
+
+        .auth-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 15px 0;
+            color: #856404;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Overlay para formulario deshabilitado */
+        .form-overlay {
+            position: relative;
+        }
+
+        .form-overlay::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 10;
+            border-radius: 15px;
+        }
+
+        .form-overlay.authenticated::before {
+            display: none;
+        }
+
+        /* Resto de estilos del formulario original */
+        .form-section {
+            margin-bottom: 25px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .form-row-three {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .form-row-five {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+        
+        .required {
+            color: #e74c3c;
+        }
+        
+        input[type="text"], 
+        input[type="date"],
+        input[type="number"],
+        input[type="time"],
+        select, 
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+        
+        input:focus, 
+        select:focus, 
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        input:disabled, input:read-only {
+            background: #f8f9fa;
+            color: #6c757d;
+            cursor: not-allowed;
+            border-color: #dee2e6;
+        }
+        
+        input:read-only.location-field {
+            background: #e8f5e8 !important;
+            color: #155724 !important;
+            cursor: default;
+        }
+        
+        .location-field {
+            background: #e8f5e8 !important;
+            border-color: #28a745 !important;
+        }
+        
+        .location-field.uas-location {
+            background: #d4edda !important;
+            color: #155724 !important;
+            font-weight: 600;
+        }
+        
+        .location-field.error {
+            background: #f8d7da !important;
+            border-color: #dc3545 !important;
+            color: #721c24 !important;
+        }
+        
+        .location-field.warning {
+            background: #fff3cd !important;
+            border-color: #ffc107 !important;
+            color: #856404 !important;
+        }
+        
+        input:read-only.location-field.uas-location {
+            background: #d4edda !important;
+            color: #155724 !important;
+            font-weight: 600;
+        }
+        
+        input:read-only.location-field.error {
+            background: #f8d7da !important;
+            border-color: #dc3545 !important;
+            color: #721c24 !important;
+        }
+        
+        input:read-only.location-field.warning {
+            background: #fff3cd !important;
+            border-color: #ffc107 !important;
+            color: #856404 !important;
+        }
+        
+        .location-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .location-status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .location-status.warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        
+        .location-status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .location-status.loading {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .checkbox-group {
+            display: grid;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px;
+            background: #d3acfe;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+        }
+        
+        .checkbox-item:hover {
+            background: #bbdefb;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            width: auto;
+            margin-top: 2px;
+            transform: scale(1.2);
+        }
+        
+        .conditional-field {
+            margin-top: 15px;
+            padding: 15px;
+            background: #d3acfe;
+            border: 1px solid #90caf9;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .conditional-field.show {
+            display: block;
+        }
+        
+        .age-groups {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            margin-top: 20px;
+        }
+        
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .submit-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        .submit-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .location-retry-btn {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.3s ease;
+        }
+        
+        .location-retry-btn:hover {
+            background: #138496;
+        }
+
+        /* Responsivo para logos */
+        @media (min-width: 1200px) {
+            .logo {
+                max-height: 120px;
+                max-width: 32%;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .form-row, .form-row-three, .form-row-five, .age-groups {
+                grid-template-columns: 1fr;
+            }
+            
+            .logos {
+                justify-content: center;
+                gap: 20px;
+            }
+            
+            .logo {
+                max-height: 80px;
+                max-width: 45%;
+                min-width: 100px;
+            }
+            
+            h1 {
+                font-size: 1.2em;
+                padding: 15px;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .logos {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .logo {
+                max-height: 60px;
+                max-width: 70%;
+                min-width: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logos">
+                <img src="https://lh3.googleusercontent.com/d/19ybSSXzb1ko_982HrRi7Kd7dPfN8Peuc" alt="UAS" class="logo">
+				<img src="https://lh3.googleusercontent.com/d/12tYxfzWgy3BVYjadXOEKlX5-uSsxIrBt" alt="CESPSIC" class="logo">
+				<img src="https://lh3.googleusercontent.com/d/1tR9QzPGbydb_qjDkZOKsoNU6_xIBGQP2" alt="Facultad de Psicología" class="logo">
+            </div>
+            <h1>Servicio de atención psicológica, rescatando la inclusión del psicólogo a través del Centro de Servicios Psicológicos a la Comunidad (CESPSIC)</h1>
+        </div>
+
+        <!-- Sección de Autenticación -->
+        <div class="auth-section" id="auth-section">
+            <div class="auth-title" id="auth-title">
+                🔐 Autenticación Requerida
+            </div>
+            
+            <div class="auth-warning">
+                ⚠️ Para registrar su asistencia debe autenticarse con su cuenta Gmail institucional o personal
+            </div>
+            
+            <!-- Información del usuario autenticado -->
+            <div class="user-info" id="user-info">
+                <img id="user-avatar" class="user-avatar" src="" alt="Avatar">
+                <div class="user-email" id="user-email"></div>
+                <div class="user-name" id="user-name"></div>
+                <button class="signout-btn" onclick="signOut()">🚪 Cerrar Sesión</button>
+            </div>
+            
+            <!-- Botón de inicio de sesión con Google -->
+            <div id="signin-button-container">
+                <button class="google-signin-btn" onclick="initializeGoogleSignIn()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    Iniciar Sesión con Google
+                </button>
+            </div>
+        </div>
+
+        <!-- Formulario (inicialmente deshabilitado) -->
+        <div class="form-overlay" id="form-container">
+            <form id="attendanceForm">
+                <!-- Campos ocultos (automáticos) -->
+                <input type="hidden" id="timestamp" name="timestamp">
+                <input type="hidden" id="email" name="email">
+                <input type="hidden" id="latitude" name="latitude">
+                <input type="hidden" id="longitude" name="longitude">
+                <input type="hidden" id="location_status" name="location_status">
+                <input type="hidden" id="google_user_id" name="google_user_id">
+
+                <!-- Información personal -->
+                <div class="form-section">
+                    <div class="form-row-three">
+                        <div class="form-group">
+                            <label for="nombre">Nombre <span class="required">*</span></label>
+                            <input type="text" id="nombre" name="nombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="apellido_paterno">Apellido Paterno <span class="required">*</span></label>
+                            <input type="text" id="apellido_paterno" name="apellido_paterno" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="apellido_materno">Apellido Materno <span class="required">*</span></label>
+                            <input type="text" id="apellido_materno" name="apellido_materno" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tipo de estudiante -->
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="tipo_estudiante">Tipo de estudiante <span class="required">*</span></label>
+                        <select id="tipo_estudiante" name="tipo_estudiante" required>
+                            <option value="">Seleccione una opción</option>
+                            <option value="estancia_profesional">Estancia Profesional</option>
+                            <option value="practicas_supervisadas">Prácticas Supervisadas</option>
+                            <option value="servicio_social">Servicio Social</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Fecha, hora y ubicación -->
+                <div class="form-section">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fecha">Fecha <span class="required">*</span></label>
+                            <input type="date" id="fecha" name="fecha" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="hora">Hora actual</label>
+                            <input type="time" id="hora" name="hora" readonly>
+                        </div>
+                    </div>
+                    
+                    <!-- CAMPOS DE UBICACIÓN -->
+                    <div class="form-group">
+                        <label for="ubicacion_detectada">Ubicación detectada <span class="required">*</span></label>
+                        <input type="text" id="ubicacion_detectada" name="ubicacion_detectada" 
+                               value="Esperando autenticación..." class="location-field" readonly>
+                        <div id="location_status_display" class="location-status loading">
+                            🔐 Complete la autenticación para obtener ubicación GPS
+                        </div>
+                        <button type="button" id="retry_location_btn" class="location-retry-btn" style="display: none;">
+                            🔄 Reintentar ubicación
+                        </button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="direccion_completa">Dirección completa</label>
+                        <input type="text" id="direccion_completa" name="direccion_completa" 
+                               value="Esperando autenticación..." class="location-field" readonly>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="precision_gps">Precisión GPS</label>
+                            <input type="text" id="precision_gps" name="precision_gps" 
+                                   value="Esperando autenticación..." class="location-field" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="tipo_registro">Tipo de registro <span class="required">*</span></label>
+                            <select id="tipo_registro" name="tipo_registro" required>
+                                <option value="">Seleccione</option>
+                                <option value="entrada">Entrada</option>
+                                <option value="salida">Salida</option>
+                                <option value="permiso">Permiso</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Campos condicionales para Permiso y Otro -->
+                    <div id="permiso_detalle_section" class="conditional-field">
+                        <div class="form-group">
+                            <label for="permiso_detalle">Especifique el motivo del permiso <span class="required">*</span></label>
+                            <textarea id="permiso_detalle" name="permiso_detalle" rows="3" placeholder="Describa el motivo del permiso..."></textarea>
+                        </div>
+                    </div>
+
+                    <div id="otro_detalle_section" class="conditional-field">
+                        <div class="form-group">
+                            <label for="otro_detalle">Especifique el tipo de registro <span class="required">*</span></label>
+                            <textarea id="otro_detalle" name="otro_detalle" rows="3" placeholder="Describa el tipo de registro..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sección de salida (condicional) -->
+                <div id="salida_section" class="conditional-field">
+                    <div class="form-group">
+                        <label for="intervenciones_psicologicas">Intervenciones Psicológicas atendidas en el día</label>
+                        <input type="number" id="intervenciones_psicologicas" name="intervenciones_psicologicas" min="0" value="0">
+                    </div>
+
+                    <!-- Grupos de edad (condicional) -->
+                    <div id="grupos_edad_section" class="conditional-field">
+                        <label>Distribución por grupos de edad:</label>
+                        <div class="age-groups">
+                            <div class="form-group">
+                                <label for="ninos_ninas">Niños y niñas</label>
+                                <input type="number" id="ninos_ninas" name="ninos_ninas" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="adolescentes">Adolescentes</label>
+                                <input type="number" id="adolescentes" name="adolescentes" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="adultos">Adultos</label>
+                                <input type="number" id="adultos" name="adultos" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="mayores_60">Mayores de 60 años</label>
+                                <input type="number" id="mayores_60" name="mayores_60" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="familia">Familia</label>
+                                <input type="number" id="familia" name="familia" min="0" value="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actividades realizadas -->
+                    <div class="form-group">
+                        <label>Actividades realizadas (seleccione todas las que apliquen):</label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="entrega_folletos" name="actividades[]" value="entrega_folletos">
+                                <label for="entrega_folletos">Entrega de folletos</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="dar_informacion" name="actividades[]" value="dar_informacion">
+                                <label for="dar_informacion">Dar información y resolver dudas de la población</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="difundir_info" name="actividades[]" value="difundir_info">
+                                <label for="difundir_info">Difundir información en la facultad de psicología</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="aplicacion_encuestas" name="actividades[]" value="aplicacion_encuestas">
+                                <label for="aplicacion_encuestas">Aplicación de encuestas</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="actividades_varias" name="actividades[]" value="actividades_varias">
+                                <label for="actividades_varias">Actividades varias en la clínica</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="encuestas_satisfaccion" name="actividades[]" value="encuestas_satisfaccion">
+                                <label for="encuestas_satisfaccion">Aplicación de encuestas de satisfacción</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="entrevista_psicologica" name="actividades[]" value="entrevista_psicologica">
+                                <label for="entrevista_psicologica">Realización de entrevista psicológica e historia clínica</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="pruebas_psicologicas" name="actividades[]" value="pruebas_psicologicas">
+                                <label for="pruebas_psicologicas">Aplicación de pruebas psicológicas</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campo condicional para actividades varias -->
+                    <div id="actividades_varias_detalle" class="conditional-field">
+                        <div class="form-group">
+                            <label for="actividades_varias_texto">¿Qué otras actividades realizó? <span class="required">*</span></label>
+                            <textarea id="actividades_varias_texto" name="actividades_varias_texto" rows="3" placeholder="Describa las actividades realizadas..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Campo condicional para pruebas psicológicas -->
+                    <div id="pruebas_psicologicas_detalle" class="conditional-field">
+                        <div class="form-group">
+                            <label for="pruebas_psicologicas_texto">¿Cuáles pruebas psicológicas aplicó? <span class="required">*</span></label>
+                            <textarea id="pruebas_psicologicas_texto" name="pruebas_psicologicas_texto" rows="3" placeholder="Liste las pruebas psicológicas aplicadas..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campo de comentarios adicionales -->
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="comentarios_adicionales">Comentarios adicionales</label>
+                        <textarea id="comentarios_adicionales" name="comentarios_adicionales" rows="4" placeholder="Escriba cualquier información adicional que considere relevante..."></textarea>
+                    </div>
+                </div>
+
+                <div class="status" id="status"></div>
+                
+                <button type="submit" class="submit-btn" id="submit_btn" disabled>
+                    🔐 Autentíquese primero para continuar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales
+        let currentLocation = null;
+        let userEmail = null;
+        let isAuthenticated = false;
+        let locationValid = false;
+        let locationAttempts = 0;
+        let currentUser = null;
+        const MAX_LOCATION_ATTEMPTS = 3;
+        const REQUIRED_ACCURACY = 50; // metros
+
+        // IMPORTANTE: Reemplaza con tu Google Client ID
+        const GOOGLE_CLIENT_ID = 'TU_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+
+        // Ubicaciones conocidas de la UAS
+        const ubicacionesUAS = [
+            {
+                name: "Facultad de Psicología UAS",
+                description: "Campus de la Universidad Autónoma de Sinaloa - Facultad de Psicología",
+                lat: 24.7993,
+                lng: -107.3950,
+                radius: 100
+            },
+            {
+                name: "CESPSIC - Centro de Servicios Psicológicos",
+                description: "Centro de atención psicológica de la UAS",
+                lat: 24.7995,
+                lng: -107.3948,
+                radius: 50
+            },
+            {
+                name: "Universidad Autónoma de Sinaloa - Campus Central",
+                description: "Campus principal de la UAS",
+                lat: 24.7990,
+                lng: -107.3950,
+                radius: 200
+            }
+        ];
+
+        // Inicializar formulario
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar navegador
+            if (!isGoogleChrome()) {
+                showStatus('⚠️ Este formulario funciona mejor en Google Chrome. Algunas funciones podrían no estar disponibles.', 'error');
+            }
+            
+            initializeForm();
+            setupEventListeners();
+            loadGoogleSignInScript();
+            updateCurrentTime();
+            
+            // Actualizar hora cada segundo
+            setInterval(updateCurrentTime, 1000);
+        });
+
+        function initializeForm() {
+            // Establecer fecha actual
+            const today = new Date();
+            document.getElementById('fecha').value = today.toISOString().split('T')[0];
+            
+            // Establecer hora actual
+            updateCurrentTime();
+            
+            // Establecer timestamp
+            document.getElementById('timestamp').value = new Date().toISOString();
+        }
+        
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeString = now.toTimeString().slice(0, 5); // HH:MM formato
+            document.getElementById('hora').value = timeString;
+        }
+        
+        function isGoogleChrome() {
+            const isChromium = window.chrome;
+            const winNav = window.navigator;
+            const vendorName = winNav.vendor;
+            const isOpera = typeof window.opr !== "undefined";
+            const isIEedge = winNav.userAgent.indexOf("Edg") > -1;
+            const isIOSChrome = winNav.userAgent.match("CriOS");
+
+            if (isIOSChrome) {
+                return true;
+            } else if (
+                isChromium !== null &&
+                typeof isChromium !== "undefined" &&
+                vendorName === "Google Inc." &&
+                isOpera === false &&
+                isIEedge === false
+            ) {
+                return true;
+            } else { 
+                return false;
+            }
+        }
+
+        // ========== GOOGLE SIGN-IN FUNCTIONS ==========
+        
+        function loadGoogleSignInScript() {
+            // El script ya se carga en el HTML, solo inicializamos cuando esté listo
+            if (typeof google !== 'undefined' && google.accounts) {
+                initializeGoogleSignIn();
+            } else {
+                // Esperar a que se cargue el script
+                setTimeout(loadGoogleSignInScript, 100);
+            }
+        }
+
+        function initializeGoogleSignIn() {
+            try {
+                google.accounts.id.initialize({
+                    client_id: GOOGLE_CLIENT_ID,
+                    callback: handleCredentialResponse,
+                    auto_select: false,
+                    cancel_on_tap_outside: true
+                });
+
+                // Renderizar el botón de Google Sign-In
+                google.accounts.id.renderButton(
+                    document.getElementById("signin-button-container"),
+                    {
+                        theme: "outline",
+                        size: "large",
+                        text: "signin_with",
+                        shape: "rectangular",
+                        logo_alignment: "left"
+                    }
+                );
+
+                // Intentar autenticación automática solo si el usuario ya había iniciado sesión
+                google.accounts.id.prompt();
+
+            } catch (error) {
+                console.error('Error inicializando Google Sign-In:', error);
+                showStatus('Error cargando sistema de autenticación. Verifique su conexión.', 'error');
+            }
+        }
+
+        function handleCredentialResponse(response) {
+            try {
+                // Decodificar el JWT token para obtener la información del usuario
+                const userInfo = parseJwt(response.credential);
+                
+                currentUser = {
+                    id: userInfo.sub,
+                    email: userInfo.email,
+                    name: userInfo.name,
+                    picture: userInfo.picture,
+                    email_verified: userInfo.email_verified
+                };
+
+                // Verificar que el email esté verificado
+                if (!currentUser.email_verified) {
+                    showStatus('Su cuenta de Gmail no está verificada. Use una cuenta verificada.', 'error');
+                    return;
+                }
+
+                // Actualizar estado de autenticación
+                isAuthenticated = true;
+                userEmail = currentUser.email;
+                document.getElementById('email').value = userEmail;
+                document.getElementById('google_user_id').value = currentUser.id;
+
+                // Actualizar interfaz
+                updateAuthenticationUI();
+                enableForm();
+                
+                // Iniciar proceso de ubicación
+                getCurrentLocation();
+
+                showStatus(`¡Bienvenido ${currentUser.name}! Autenticación exitosa.`, 'success');
+                setTimeout(() => hideStatus(), 3000);
+
+            } catch (error) {
+                console.error('Error procesando credenciales:', error);
+                showStatus('Error en la autenticación. Intente nuevamente.', 'error');
+            }
+        }
+
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (error) {
+                console.error('Error parsing JWT:', error);
+                return null;
+            }
+        }
+
+        function updateAuthenticationUI() {
+            const authSection = document.getElementById('auth-section');
+            const authTitle = document.getElementById('auth-title');
+            const userInfo = document.getElementById('user-info');
+            const signinContainer = document.getElementById('signin-button-container');
+
+            if (isAuthenticated && currentUser) {
+                // Actualizar sección de autenticación
+                authSection.classList.add('authenticated');
+                authTitle.textContent = '✅ Autenticación Exitosa';
+                authTitle.classList.add('authenticated');
+
+                // Mostrar información del usuario
+                document.getElementById('user-avatar').src = currentUser.picture;
+                document.getElementById('user-email').textContent = currentUser.email;
+                document.getElementById('user-name').textContent = currentUser.name;
+                userInfo.classList.add('show');
+
+                // Ocultar botón de inicio de sesión
+                signinContainer.style.display = 'none';
+
+            } else {
+                // Resetear al estado no autenticado
+                authSection.classList.remove('authenticated');
+                authTitle.textContent = '🔐 Autenticación Requerida';
+                authTitle.classList.remove('authenticated');
+                userInfo.classList.remove('show');
+                signinContainer.style.display = 'block';
+            }
+        }
+
+        function enableForm() {
+            const formContainer = document.getElementById('form-container');
+            formContainer.classList.add('authenticated');
+        }
+
+        function disableForm() {
+            const formContainer = document.getElementById('form-container');
+            formContainer.classList.remove('authenticated');
+            locationValid = false;
+            updateSubmitButton();
+        }
+
+        function signOut() {
+            try {
+                // Cerrar sesión de Google
+                google.accounts.id.disableAutoSelect();
+                
+                // Resetear variables
+                isAuthenticated = false;
+                currentUser = null;
+                userEmail = null;
+                locationValid = false;
+                currentLocation = null;
+                locationAttempts = 0;
+
+                // Limpiar campos ocultos
+                document.getElementById('email').value = '';
+                document.getElementById('google_user_id').value = '';
+                document.getElementById('latitude').value = '';
+                document.getElementById('longitude').value = '';
+                document.getElementById('location_status').value = '';
+
+                // Actualizar interfaz
+                updateAuthenticationUI();
+                disableForm();
+                resetLocationFields();
+
+                showStatus('Sesión cerrada correctamente.', 'success');
+                setTimeout(() => hideStatus(), 3000);
+
+                // Reinicializar Google Sign-In
+                setTimeout(() => {
+                    initializeGoogleSignIn();
+                }, 1000);
+
+            } catch (error) {
+                console.error('Error cerrando sesión:', error);
+                showStatus('Error al cerrar sesión.', 'error');
+            }
+        }
+
+        // ========== LOCATION FUNCTIONS ==========
+
+        function setupEventListeners() {
+            // Mostrar/ocultar sección de salida
+            document.getElementById('tipo_registro').addEventListener('change', function() {
+                const salidaSection = document.getElementById('salida_section');
+                const permisoSection = document.getElementById('permiso_detalle_section');
+                const otroSection = document.getElementById('otro_detalle_section');
+                const permisoTextarea = document.getElementById('permiso_detalle');
+                const otroTextarea = document.getElementById('otro_detalle');
+                
+                // Ocultar todas las secciones primero
+                salidaSection.classList.remove('show');
+                permisoSection.classList.remove('show');
+                otroSection.classList.remove('show');
+                permisoTextarea.required = false;
+                otroTextarea.required = false;
+                permisoTextarea.value = '';
+                otroTextarea.value = '';
+                
+                // Mostrar la sección correspondiente
+                if (this.value === 'salida') {
+                    salidaSection.classList.add('show');
+                } else if (this.value === 'permiso') {
+                    permisoSection.classList.add('show');
+                    permisoTextarea.required = true;
+                } else if (this.value === 'otro') {
+                    otroSection.classList.add('show');
+                    otroTextarea.required = true;
+                }
+            });
+
+            // Mostrar/ocultar grupos de edad según intervenciones
+            document.getElementById('intervenciones_psicologicas').addEventListener('input', function() {
+                const gruposSection = document.getElementById('grupos_edad_section');
+                if (parseInt(this.value) > 0) {
+                    gruposSection.classList.add('show');
+                } else {
+                    gruposSection.classList.remove('show');
+                }
+            });
+
+            // Campos condicionales para actividades varias
+            document.getElementById('actividades_varias').addEventListener('change', function() {
+                const detalle = document.getElementById('actividades_varias_detalle');
+                const textarea = document.getElementById('actividades_varias_texto');
+                if (this.checked) {
+                    detalle.classList.add('show');
+                    textarea.required = true;
+                } else {
+                    detalle.classList.remove('show');
+                    textarea.required = false;
+                    textarea.value = '';
+                }
+            });
+
+            // Campos condicionales para pruebas psicológicas
+            document.getElementById('pruebas_psicologicas').addEventListener('change', function() {
+                const detalle = document.getElementById('pruebas_psicologicas_detalle');
+                const textarea = document.getElementById('pruebas_psicologicas_texto');
+                if (this.checked) {
+                    detalle.classList.add('show');
+                    textarea.required = true;
+                } else {
+                    detalle.classList.remove('show');
+                    textarea.required = false;
+                    textarea.value = '';
+                }
+            });
+
+            // Botón de reintentar ubicación
+            document.getElementById('retry_location_btn').addEventListener('click', function() {
+                if (!isAuthenticated) {
+                    showStatus('Debe autenticarse primero antes de solicitar ubicación.', 'error');
+                    return;
+                }
+                locationAttempts = 0;
+                getCurrentLocation();
+            });
+
+            // Manejo del formulario
+            document.getElementById('attendanceForm').addEventListener('submit', handleSubmit);
+        }
+
+        function getCurrentLocation() {
+            if (!isAuthenticated) {
+                updateLocationStatus('error', 'Autenticación requerida', 'Complete la autenticación para obtener ubicación GPS');
+                document.getElementById('ubicacion_detectada').value = 'Esperando autenticación...';
+                document.getElementById('direccion_completa').value = 'Esperando autenticación...';
+                document.getElementById('precision_gps').value = 'Esperando autenticación...';
+                document.getElementById('location_status').value = 'Autenticación requerida';
+                return;
+            }
+
+            if (!navigator.geolocation) {
+                updateLocationStatus('error', 'Geolocalización no soportada', 'Su navegador no soporta geolocalización');
+                document.getElementById('ubicacion_detectada').value = 'Navegador no compatible';
+                document.getElementById('direccion_completa').value = 'No disponible';
+                document.getElementById('precision_gps').value = 'Sin soporte';
+                document.getElementById('location_status').value = 'Geolocalización no soportada';
+                return;
+            }
+
+            locationAttempts++;
+            updateLocationStatus('loading', `Obteniendo ubicación GPS... (Intento ${locationAttempts}/${MAX_LOCATION_ATTEMPTS})`, '');
+
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 20000,
+                maximumAge: 0
+            };
+            
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    currentLocation = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy
+                    };
+                    
+                    document.getElementById('latitude').value = currentLocation.latitude;
+                    document.getElementById('longitude').value = currentLocation.longitude;
+                    
+                    // Validar precisión
+                    if (currentLocation.accuracy <= REQUIRED_ACCURACY) {
+                        locationValid = true;
+                        document.getElementById('location_status').value = 'success';
+                        updateLocationStatus('success', 'Ubicación obtenida correctamente', 
+                            `Precisión: ${Math.round(currentLocation.accuracy)} metros`);
+                        updateSubmitButton();
+                        
+                        // Actualizar campos de ubicación
+                        updateLocationFields(currentLocation);
+                    } else {
+                        locationValid = false;
+                        document.getElementById('location_status').value = `error: Precisión insuficiente (${Math.round(currentLocation.accuracy)}m)`;
+                        updateLocationStatus('warning', 'Precisión GPS insuficiente', 
+                            `Se requiere precisión de ${REQUIRED_ACCURACY}m o menos. Actual: ${Math.round(currentLocation.accuracy)}m`);
+                        
+                        if (locationAttempts < MAX_LOCATION_ATTEMPTS) {
+                            setTimeout(() => {
+                                updateLocationStatus('loading', 'Reintentando obtener mejor precisión...', '');
+                                getCurrentLocation();
+                            }, 2000);
+                        } else {
+                            updateLocationStatus('error', 'No se pudo obtener la precisión requerida', 
+                                `Después de ${MAX_LOCATION_ATTEMPTS} intentos. Muévase a un área con mejor señal GPS.`);
+                            document.getElementById('retry_location_btn').style.display = 'block';
+                        }
+                    }
+                },
+                function(error) {
+                    locationValid = false;
+                    console.error('Error obteniendo ubicación:', error);
+                    let errorMessage = '';
+                    let errorDescription = '';
+                    
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage = 'Permisos de ubicación denegados';
+                            errorDescription = 'Por favor, permita el acceso a la ubicación y recargue la página';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage = 'Ubicación no disponible';
+                            errorDescription = 'No se pudo determinar su ubicación. Verifique su conexión GPS';
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage = 'Tiempo de espera agotado';
+                            errorDescription = 'La solicitud de ubicación tardó demasiado. Intente nuevamente';
+                            break;
+                        default:
+                            errorMessage = 'Error desconocido de geolocalización';
+                            errorDescription = 'Error inesperado al obtener la ubicación';
+                    }
+                    
+                    document.getElementById('location_status').value = 'error: ' + errorMessage;
+                    updateLocationStatus('error', errorMessage, errorDescription);
+                    
+                    // Actualizar campos con error
+                    document.getElementById('ubicacion_detectada').value = 'Error: ' + errorMessage;
+                    document.getElementById('direccion_completa').value = 'No disponible';
+                    document.getElementById('precision_gps').value = 'Sin datos';
+                    document.getElementById('ubicacion_detectada').className = 'location-field error';
+                    document.getElementById('direccion_completa').className = 'location-field error';
+                    document.getElementById('precision_gps').className = 'location-field error';
+                    
+                    if (locationAttempts < MAX_LOCATION_ATTEMPTS && error.code !== error.PERMISSION_DENIED) {
+                        setTimeout(() => {
+                            getCurrentLocation();
+                        }, 3000);
+                    } else {
+                        document.getElementById('retry_location_btn').style.display = 'block';
+                    }
+                },
+                options
+            );
+        }
+
+        function updateLocationStatus(type, message, description) {
+            const statusDiv = document.getElementById('location_status_display');
+            const icons = {
+                loading: '🌐',
+                success: '✅',
+                warning: '⚠️',
+                error: '❌'
+            };
+            
+            statusDiv.className = `location-status ${type}`;
+            statusDiv.innerHTML = `${icons[type]} <strong>${message}</strong>${description ? '<br>' + description : ''}`;
+        }
+
+        function updateSubmitButton() {
+            const submitBtn = document.getElementById('submit_btn');
+            
+            if (!isAuthenticated) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = '🔐 Autentíquese primero para continuar';
+                submitBtn.style.background = '#6c757d';
+            } else if (locationValid) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '📝 Registrar Asistencia';
+                submitBtn.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.textContent = '⚠️ Ubicación GPS requerida';
+                submitBtn.style.background = '#6c757d';
+            }
+        }
+
+        function updateLocationFields(location) {
+            // Actualizar precisión
+            const accuracy = Math.round(location.accuracy);
+            let precisionText = `${accuracy} metros`;
+            let precisionClass = 'location-field';
+            
+            if (accuracy <= 10) {
+                precisionText += ' (Excelente)';
+                precisionClass += ' location-field';
+            } else if (accuracy <= 30) {
+                precisionText += ' (Muy Buena)';
+                precisionClass += ' location-field';
+            } else if (accuracy <= 50) {
+                precisionText += ' (Buena)';
+                precisionClass += ' location-field';
+            } else if (accuracy <= 100) {
+                precisionText += ' (Regular)';
+                precisionClass += ' warning';
+            } else {
+                precisionText += ' (Insuficiente)';
+                precisionClass += ' error';
+            }
+            
+            const precisionField = document.getElementById('precision_gps');
+            precisionField.value = precisionText;
+            precisionField.className = precisionClass;
+            
+            // Detectar ubicación específica
+            const ubicacionDetectada = detectarUbicacionEspecifica(location.latitude, location.longitude);
+            const campoUbicacion = document.getElementById('ubicacion_detectada');
+            
+            if (ubicacionDetectada.encontrada && ubicacionDetectada.esUAS) {
+                campoUbicacion.value = ubicacionDetectada.nombre;
+                campoUbicacion.className = 'location-field uas-location';
+            } else {
+                campoUbicacion.value = "Consultando ubicación...";
+                campoUbicacion.className = 'location-field';
+            }
+            
+            // Obtener dirección completa
+            obtenerDireccionCompleta(location.latitude, location.longitude, ubicacionDetectada);
+        }
+
+        function detectarUbicacionEspecifica(lat, lng) {
+            // Ordenar por radio (más específico primero)
+            const ubicacionesOrdenadas = ubicacionesUAS.sort((a, b) => a.radius - b.radius);
+            
+            for (let ubicacion of ubicacionesOrdenadas) {
+                const distancia = calcularDistancia(lat, lng, ubicacion.lat, ubicacion.lng);
+                
+                if (distancia <= ubicacion.radius) {
+                    return {
+                        encontrada: true,
+                        esUAS: true,
+                        nombre: ubicacion.name,
+                        descripcion: ubicacion.description,
+                        distancia: Math.round(distancia)
+                    };
+                }
+            }
+            
+            return {
+                encontrada: false,
+                esUAS: false,
+                nombre: "Ubicación externa",
+                descripcion: "Fuera del campus UAS",
+                distancia: null
+            };
+        }
+
+        async function obtenerDireccionCompleta(lat, lng, ubicacionDetectada) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=es&zoom=18`);
+                const data = await response.json();
+                
+                const direccionField = document.getElementById('direccion_completa');
+                
+                if (data && data.display_name) {
+                    direccionField.value = data.display_name;
+                    direccionField.className = 'location-field';
+                    
+                    // Si no está en la UAS, actualizar ubicación con información específica
+                    if (!ubicacionDetectada.esUAS) {
+                        actualizarUbicacionEspecifica(data);
+                    }
+                } else {
+                    direccionField.value = 'Dirección no disponible';
+                    direccionField.className = 'location-field warning';
+                }
+            } catch (error) {
+                const direccionField = document.getElementById('direccion_completa');
+                direccionField.value = 'Error al obtener dirección';
+                direccionField.className = 'location-field warning';
+            }
+        }
+
+        function actualizarUbicacionEspecifica(direccionData) {
+            const campoUbicacion = document.getElementById('ubicacion_detectada');
+            const address = direccionData.address || {};
+            
+            let ubicacionEspecifica = '';
+            
+            // Priorizar información más específica
+            if (address.house_number && address.road) {
+                ubicacionEspecifica = `${address.road} ${address.house_number}`;
+            } else if (address.road) {
+                ubicacionEspecifica = address.road;
+            } else if (address.neighbourhood || address.suburb) {
+                ubicacionEspecifica = address.neighbourhood || address.suburb;
+            } else if (address.city_district) {
+                ubicacionEspecifica = address.city_district;
+            } else if (address.city || address.town) {
+                ubicacionEspecifica = address.city || address.town;
+            } else {
+                ubicacionEspecifica = "Ubicación no especificada";
+            }
+            
+            campoUbicacion.value = ubicacionEspecifica;
+        }
+
+        function calcularDistancia(lat1, lng1, lat2, lng2) {
+            const R = 6371e3; // Radio de la Tierra en metros
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lng2-lng1) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c;
+        }
+
+        function resetLocationFields() {
+            document.getElementById('ubicacion_detectada').value = 'Esperando autenticación...';
+            document.getElementById('direccion_completa').value = 'Esperando autenticación...';
+            document.getElementById('precision_gps').value = 'Esperando autenticación...';
+            document.getElementById('ubicacion_detectada').className = 'location-field';
+            document.getElementById('direccion_completa').className = 'location-field';
+            document.getElementById('precision_gps').className = 'location-field';
+            document.getElementById('retry_location_btn').style.display = 'none';
+            updateLocationStatus('loading', '🔐 Complete la autenticación para obtener ubicación GPS', '');
+        }
+
+        // ========== FORM SUBMISSION ==========
+
+        async function handleSubmit(e) {
+            e.preventDefault();
+            
+            // Verificar autenticación
+            if (!isAuthenticated || !currentUser) {
+                showStatus('❌ Debe autenticarse con Google antes de registrar la asistencia.', 'error');
+                return;
+            }
+            
+            // Validar que se tenga ubicación válida antes de continuar
+            if (!locationValid || !currentLocation) {
+                showStatus('❌ No se puede registrar la asistencia sin una ubicación GPS válida con precisión de 50 metros o menos.', 'error');
+                return;
+            }
+            
+            // Validar precisión una vez más
+            if (currentLocation.accuracy > REQUIRED_ACCURACY) {
+                showStatus(`❌ La precisión GPS actual (${Math.round(currentLocation.accuracy)}m) supera el límite permitido de ${REQUIRED_ACCURACY}m. Intente obtener una mejor señal GPS.`, 'error');
+                return;
+            }
+            
+            // Actualizar timestamp al momento del envío
+            document.getElementById('timestamp').value = new Date().toISOString();
+            
+            // Validar campos requeridos condicionalmente
+            if (!validateConditionalFields()) {
+                return;
+            }
+            
+            // Mostrar cargando
+            showStatus('Guardando asistencia... ⏳', 'success');
+            const submitBtn = document.querySelector('.submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Guardando...';
+            
+            try {
+                const formData = new FormData(e.target);
+                const data = {};
+                
+                // Procesar FormData normal
+                for (let [key, value] of formData.entries()) {
+                    if (data[key]) {
+                        if (Array.isArray(data[key])) {
+                            data[key].push(value);
+                        } else {
+                            data[key] = [data[key], value];
+                        }
+                    } else {
+                        data[key] = value;
+                    }
+                }
+                
+                // Forzar la inclusión de los campos de ubicación
+                data.ubicacion_detectada = document.getElementById('ubicacion_detectada').value;
+                data.direccion_completa = document.getElementById('direccion_completa').value;
+                data.precision_gps = document.getElementById('precision_gps').value;
+                
+                // Agregar información adicional de autenticación y ubicación
+                data.precision_gps_metros = Math.round(currentLocation.accuracy);
+                data.location_validation = 'passed';
+                data.authenticated_user_name = currentUser.name;
+                data.authentication_timestamp = new Date().toISOString();
+                
+                // Log para debugging
+                console.log('Datos que se enviarán:', data);
+                console.log('Usuario autenticado:', currentUser.email);
+                console.log('Ubicación detectada:', data.ubicacion_detectada);
+                console.log('Dirección completa:', data.direccion_completa);
+                console.log('Precisión GPS:', data.precision_gps);
+                
+                // IMPORTANTE: Reemplaza esta URL con tu URL de Google Apps Script
+                const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrfCv4MjdqjmbHDGuh-VfjwO-5LK-jTlKtqjUNPXtVRfm9rAk4DKv091fbtP01KKKE/exec';
+                
+                // Enviar a Google Apps Script
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                // Como usamos no-cors, asumimos éxito si no hay error
+                showStatus(`¡Asistencia registrada exitosamente! 📊✅
+                Usuario: ${currentUser.name} (${currentUser.email})
+                Ubicación: ${data.ubicacion_detectada}
+                Precisión GPS: ${data.precision_gps}`, 'success');
+                
+                // Resetear formulario después de 4 segundos
+                setTimeout(() => {
+                    if (confirm('¿Desea registrar otra asistencia? Presione OK para continuar o Cancelar para cerrar sesión.')) {
+                        // Continuar con el mismo usuario
+                        resetFormOnly();
+                        getCurrentLocation();
+                    } else {
+                        // Cerrar sesión y resetear todo
+                        signOut();
+                    }
+                    hideStatus();
+                }, 4000);
+                
+            } catch (error) {
+                console.error('Error al enviar:', error);
+                showStatus('Error al guardar en Google Sheets. Verifique su conexión e intente nuevamente. ❌', 'error');
+                
+                // Restaurar botón
+                setTimeout(() => {
+                    updateSubmitButton();
+                    hideStatus();
+                }, 5000);
+            }
+        }
+
+        function resetFormOnly() {
+            // Resetear solo el formulario, manteniendo la autenticación
+            document.getElementById('attendanceForm').reset();
+            initializeForm();
+            
+            // Resetear campos condicionales
+            document.querySelectorAll('.conditional-field').forEach(field => {
+                field.classList.remove('show');
+            });
+            
+            // Resetear campos de ubicación pero mantener autenticación
+            document.getElementById('ubicacion_detectada').value = 'Obteniendo ubicación...';
+            document.getElementById('direccion_completa').value = 'Consultando dirección...';
+            document.getElementById('precision_gps').value = 'Calculando...';
+            document.getElementById('ubicacion_detectada').className = 'location-field';
+            document.getElementById('direccion_completa').className = 'location-field';
+            document.getElementById('precision_gps').className = 'location-field';
+            document.getElementById('retry_location_btn').style.display = 'none';
+            
+            // Mantener información de autenticación
+            document.getElementById('email').value = currentUser.email;
+            document.getElementById('google_user_id').value = currentUser.id;
+            
+            // Resetear estado de ubicación
+            locationValid = false;
+            locationAttempts = 0;
+            updateLocationStatus('loading', 'Obteniendo nueva ubicación GPS...', '');
+            updateSubmitButton();
+        }
+
+        function validateConditionalFields() {
+            // Validar campo de permiso
+            const tipoRegistro = document.getElementById('tipo_registro');
+            const permisoDetalle = document.getElementById('permiso_detalle');
+            const otroDetalle = document.getElementById('otro_detalle');
+            
+            if (tipoRegistro.value === 'permiso' && !permisoDetalle.value.trim()) {
+                showStatus('Por favor, especifique el motivo del permiso.', 'error');
+                permisoDetalle.focus();
+                return false;
+            }
+            
+            if (tipoRegistro.value === 'otro' && !otroDetalle.value.trim()) {
+                showStatus('Por favor, especifique el tipo de registro.', 'error');
+                otroDetalle.focus();
+                return false;
+            }
+            
+            // Validar campo de actividades varias
+            const actividadesVarias = document.getElementById('actividades_varias');
+            const actividadesVariasTexto = document.getElementById('actividades_varias_texto');
+            
+            if (actividadesVarias.checked && !actividadesVariasTexto.value.trim()) {
+                showStatus('Por favor, describa las actividades varias realizadas.', 'error');
+                actividadesVariasTexto.focus();
+                return false;
+            }
+            
+            // Validar campo de pruebas psicológicas
+            const pruebasPsicologicas = document.getElementById('pruebas_psicologicas');
+            const pruebasPsicologicasTexto = document.getElementById('pruebas_psicologicas_texto');
+            
+            if (pruebasPsicologicas.checked && !pruebasPsicologicasTexto.value.trim()) {
+                showStatus('Por favor, especifique qué pruebas psicológicas aplicó.', 'error');
+                pruebasPsicologicasTexto.focus();
+                return false;
+            }
+            
+            // Validar que la suma de grupos de edad coincida con intervenciones totales
+            const intervenciones = parseInt(document.getElementById('intervenciones_psicologicas').value) || 0;
+            
+            if (intervenciones > 0) {
+                const ninos = parseInt(document.getElementById('ninos_ninas').value) || 0;
+                const adolescentes = parseInt(document.getElementById('adolescentes').value) || 0;
+                const adultos = parseInt(document.getElementById('adultos').value) || 0;
+                const mayores = parseInt(document.getElementById('mayores_60').value) || 0;
+                const familia = parseInt(document.getElementById('familia').value) || 0;
+                
+                const sumaGrupos = ninos + adolescentes + adultos + mayores + familia;
+                
+                if (sumaGrupos !== intervenciones) {
+                    showStatus(`Error: El total de intervenciones (${intervenciones}) debe ser igual a la suma de los grupos de edad (${sumaGrupos}). Niños: ${ninos}, Adolescentes: ${adolescentes}, Adultos: ${adultos}, Mayores 60: ${mayores}, Familia: ${familia}`, 'error');
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.innerHTML = message; // Usar innerHTML para permitir saltos de línea
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        function hideStatus() {
+            const status = document.getElementById('status');
+            status.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
