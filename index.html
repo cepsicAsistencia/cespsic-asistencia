@@ -26,7 +26,7 @@
         <!-- Sección de Autenticación -->
         <div class="auth-section" id="auth-section">
             <div class="auth-title" id="auth-title">
-                🔐 Autenticación Requerida
+                🔒 Autenticación Requerida
             </div>
             
             <div class="auth-warning">
@@ -84,16 +84,26 @@
                     </div>
                 </div>
 
-                <!-- Tipo de estudiante -->
+                <!-- Tipo de estudiante y Modalidad -->
                 <div class="form-section">
-                    <div class="form-group">
-                        <label for="tipo_estudiante">Tipo de estudiante <span class="required">*</span></label>
-                        <select id="tipo_estudiante" name="tipo_estudiante" required>
-                            <option value="">Seleccione una opción</option>
-                            <option value="estancia_profesional">Estancia Profesional</option>
-                            <option value="practicas_supervisadas">Prácticas Supervisadas</option>
-                            <option value="servicio_social">Servicio Social</option>
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tipo_estudiante">Tipo de estudiante <span class="required">*</span></label>
+                            <select id="tipo_estudiante" name="tipo_estudiante" required>
+                                <option value="">Seleccione una opción</option>
+                                <option value="estancia_profesional">Estancia Profesional</option>
+                                <option value="practicas_supervisadas">Prácticas Supervisadas</option>
+                                <option value="servicio_social">Servicio Social</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="modalidad">Modalidad <span class="required">*</span></label>
+                            <select id="modalidad" name="modalidad" required>
+                                <option value="">Seleccione una opción</option>
+                                <option value="presencial">Presencial</option>
+                                <option value="virtual">Virtual</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -101,11 +111,11 @@
                 <div class="form-section">
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="fecha">Fecha <span class="required">*</span></label>
-                            <input type="date" id="fecha" name="fecha" required>
+                            <label for="fecha">Fecha</label>
+                            <input type="date" id="fecha" name="fecha" readonly>
                         </div>
                         <div class="form-group">
-                            <label for="hora">Hora actual</label>
+                            <label for="hora">Hora</label>
                             <input type="time" id="hora" name="hora" readonly>
                         </div>
                     </div>
@@ -116,7 +126,7 @@
                         <input type="text" id="ubicacion_detectada" name="ubicacion_detectada" 
                                value="Esperando autenticación..." class="location-field" readonly>
                         <div id="location_status_display" class="location-status loading">
-                            🔍 Complete la autenticación para obtener ubicación GPS
+                            📍 Complete la autenticación para obtener ubicación GPS
                         </div>
                         <button type="button" id="retry_location_btn" class="location-retry-btn" style="display: none;">
                             🔄 Reintentar ubicación
@@ -163,8 +173,8 @@
                     </div>
                 </div>
 
-                <!-- NUEVA SECCIÓN: EVIDENCIAS FOTOGRÁFICAS -->
-                <div class="form-section">
+                <!-- SECCIÓN DE EVIDENCIAS FOTOGRÁFICAS (Solo para salida) -->
+                <div class="form-section" id="evidencias_section" style="display: none;">
                     <div class="form-group">
                         <label for="evidencias">Evidencias fotográficas (opcional)</label>
                         <div class="evidencias-container">
@@ -283,7 +293,7 @@
                 <div class="status" id="status"></div>
                 
                 <button type="submit" class="submit-btn" id="submit_btn" disabled>
-                    🔐 Autentíquese primero para continuar
+                    🔒 Autentíquese primero para continuar
                 </button>
             </form>
         </div>
