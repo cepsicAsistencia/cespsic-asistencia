@@ -57,11 +57,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeForm() {
-    // Establecer fecha actual
+    // Establecer fecha actual (solo lectura)
     const today = new Date();
     document.getElementById('fecha').value = today.toISOString().split('T')[0];
     
-    // Establecer hora actual
+    // Establecer hora actual (solo lectura)
     updateCurrentTime();
     
     // Establecer timestamp
@@ -218,7 +218,7 @@ function updateAuthenticationUI() {
     } else {
         // Resetear al estado no autenticado
         authSection.classList.remove('authenticated');
-        authTitle.textContent = '🔐 Autenticación Requerida';
+        authTitle.textContent = '🔒 Autenticación Requerida';
         authTitle.classList.remove('authenticated');
         userInfo.classList.remove('show');
         signinContainer.style.display = 'block';
@@ -445,9 +445,10 @@ function setupEventListeners() {
     // Configurar manejadores de evidencias
     setupEvidenciasHandlers();
     
-    // Mostrar/ocultar sección de salida
+    // Mostrar/ocultar sección de salida y evidencias
     document.getElementById('tipo_registro').addEventListener('change', function() {
         const salidaSection = document.getElementById('salida_section');
+        const evidenciasSection = document.getElementById('evidencias_section');
         const permisoSection = document.getElementById('permiso_detalle_section');
         const otroSection = document.getElementById('otro_detalle_section');
         const permisoTextarea = document.getElementById('permiso_detalle');
@@ -455,6 +456,7 @@ function setupEventListeners() {
         
         // Ocultar todas las secciones primero
         salidaSection.classList.remove('show');
+        evidenciasSection.style.display = 'none';
         permisoSection.classList.remove('show');
         otroSection.classList.remove('show');
         permisoTextarea.required = false;
@@ -462,9 +464,15 @@ function setupEventListeners() {
         permisoTextarea.value = '';
         otroTextarea.value = '';
         
+        // Resetear evidencias cuando no es salida
+        if (this.value !== 'salida') {
+            resetEvidenciasSection();
+        }
+        
         // Mostrar la sección correspondiente
         if (this.value === 'salida') {
             salidaSection.classList.add('show');
+            evidenciasSection.style.display = 'block'; // Mostrar evidencias solo para salida
         } else if (this.value === 'permiso') {
             permisoSection.classList.add('show');
             permisoTextarea.required = true;
@@ -658,7 +666,7 @@ function updateSubmitButton() {
     
     if (!isAuthenticated) {
         submitBtn.disabled = true;
-        submitBtn.textContent = '🔐 Autentíquese primero para continuar';
+        submitBtn.textContent = '🔒 Autentíquese primero para continuar';
         submitBtn.style.background = '#6c757d';
     } else if (locationValid) {
         submitBtn.disabled = false;
@@ -814,7 +822,7 @@ function resetLocationFields() {
     document.getElementById('direccion_completa').className = 'location-field';
     document.getElementById('precision_gps').className = 'location-field';
     document.getElementById('retry_location_btn').style.display = 'none';
-    updateLocationStatus('loading', '🔍 Complete la autenticación para obtener ubicación GPS', '');
+    updateLocationStatus('loading', '📍 Complete la autenticación para obtener ubicación GPS', '');
 }
 
 // ========== FORM SUBMISSION ==========
@@ -897,6 +905,7 @@ async function handleSubmit(e) {
         // Log para debugging
         console.log('Datos que se enviarán:', data);
         console.log('Usuario autenticado:', currentUser.email);
+        console.log('Modalidad:', data.modalidad);
         console.log('Evidencias subidas:', evidenciasUrls.length);
         
         // IMPORTANTE: Reemplaza esta URL con tu URL de Google Apps Script
@@ -915,6 +924,7 @@ async function handleSubmit(e) {
         // Como usamos no-cors, asumimos éxito si no hay error
         showStatus(`¡Asistencia registrada exitosamente! 📊✅
         Usuario: ${currentUser.name} (${currentUser.email})
+        Modalidad: ${data.modalidad}
         Ubicación: ${data.ubicacion_detectada}
         Precisión GPS: ${data.precision_gps}
         Evidencias: ${evidenciasUrls.length} imagen(es)`, 'success');
@@ -999,7 +1009,7 @@ async function uploadEvidencias() {
             };
             
             // Enviar a Google Apps Script
-            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyIG73lNAsmfV2Yk8_jIXhX49WsTucfz8lCC0-WWj4mysSX_8AGsgl84ZZp6s1tNGhQ/exec';
+            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzNtxM1ELVjtBJUR5mJXo1GQnDoYB8Jk0KfHsLROYGa0yCWO509ULu9_dk7r_CtNmZ4/exec';
             
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
@@ -1070,6 +1080,9 @@ function resetFormOnly() {
     document.querySelectorAll('.conditional-field').forEach(field => {
         field.classList.remove('show');
     });
+    
+    // Ocultar sección de evidencias
+    document.getElementById('evidencias_section').style.display = 'none';
     
     // Resetear evidencias
     resetEvidenciasSection();
