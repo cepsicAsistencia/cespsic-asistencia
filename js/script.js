@@ -870,24 +870,41 @@ async function handleSubmit(e) {
             evidenciasUrls = await uploadEvidencias();
         }
         
+        // MÉTODO CORREGIDO PARA PROCESAR DATOS DEL FORMULARIO
         const formData = new FormData(e.target);
         const data = {};
         
-        // Procesar FormData normal
+        // Procesar campos normales del formulario
         for (let [key, value] of formData.entries()) {
             if (key === 'evidencias') continue; // Skip evidencias input
-            if (data[key]) {
-                if (Array.isArray(data[key])) {
-                    data[key].push(value);
-                } else {
-                    data[key] = [data[key], value];
+            
+            // Manejar arrays (como actividades[])
+            if (key.endsWith('[]')) {
+                const cleanKey = key.replace('[]', '');
+                if (!data[cleanKey]) {
+                    data[cleanKey] = [];
                 }
+                data[cleanKey].push(value);
             } else {
-                data[key] = value;
+                // Para campos normales, si ya existe, convertir a array
+                if (data[key]) {
+                    if (Array.isArray(data[key])) {
+                        data[key].push(value);
+                    } else {
+                        data[key] = [data[key], value];
+                    }
+                } else {
+                    data[key] = value;
+                }
             }
         }
         
-        // Agregar URLs de evidencias
+        // ASEGURAR QUE LOS CAMPOS CRÍTICOS ESTÉN INCLUIDOS
+        // Forzar modalidad desde el elemento del DOM
+        const modalidadElement = document.getElementById('modalidad');
+        data.modalidad = modalidadElement.value;
+        
+        // Agregar URLs de evidencias ANTES de enviar
         data.evidencias_urls = evidenciasUrls;
         data.total_evidencias = evidenciasUrls.length;
         
@@ -902,24 +919,38 @@ async function handleSubmit(e) {
         data.authenticated_user_name = currentUser.name;
         data.authentication_timestamp = new Date().toISOString();
         
-        // Log para debugging
-        console.log('Datos que se enviarán:', data);
-        console.log('Usuario autenticado:', currentUser.email);
+        // VALIDACIÓN ADICIONAL ANTES DEL ENVÍO
+        console.log('=== DATOS ANTES DEL ENVÍO ===');
         console.log('Modalidad:', data.modalidad);
-        console.log('Evidencias subidas:', evidenciasUrls.length);
+        console.log('Total evidencias:', data.total_evidencias);
+        console.log('URLs evidencias:', data.evidencias_urls);
+        console.log('Usuario autenticado:', currentUser.email);
+        console.log('Datos completos:', data);
+        
+        // Verificar que modalidad no esté vacía
+        if (!data.modalidad || data.modalidad === '') {
+            showStatus('❌ Error: El campo Modalidad es requerido y no puede estar vacío.', 'error');
+            updateSubmitButton();
+            return;
+        }
         
         // IMPORTANTE: Reemplaza esta URL con tu URL de Google Apps Script
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrfCv4MjdqjmbHDGuh-VfjwO-5LK-jTlKtqjUNPXtVRfm9rAk4DKv091fbtP01KKKE/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdzQgYOOawGZc-ZDYhHrBqhfLLYrczeTS7XLdhZ1gnQq8SGAhU7t_dOYuCRJTAwZ-4/exec';
         
-        // Enviar a Google Apps Script
+        // ENVÍO CON MANEJO DE ERRORES MEJORADO
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            mode: 'no-cors',
+            mode: 'no-cors', // Cambiar a 'cors' para debug
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(data)
         });
+        
+        // Log para verificar envío
+        console.log('=== DATOS ENVIADOS ===');
+        console.log('URL:', GOOGLE_SCRIPT_URL);
+        console.log('Payload:', JSON.stringify(data, null, 2));
         
         // Como usamos no-cors, asumimos éxito si no hay error
         showStatus(`¡Asistencia registrada exitosamente! 📊✅
@@ -952,6 +983,23 @@ async function handleSubmit(e) {
             hideStatus();
         }, 5000);
     }
+}
+
+// FUNCIÓN ADICIONAL PARA DEBUG
+function verificarDatosFormulario() {
+    console.log('=== VERIFICACIÓN DATOS FORMULARIO ===');
+    
+    const modalidad = document.getElementById('modalidad').value;
+    console.log('Modalidad DOM:', modalidad);
+    
+    const formData = new FormData(document.getElementById('attendanceForm'));
+    for (let [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
+    }
+    
+    console.log('Evidencias seleccionadas:', selectedFiles.length);
+    console.log('Usuario autenticado:', currentUser?.email);
+    console.log('Ubicación válida:', locationValid);
 }
 
 // Función para generar nombre de archivo de evidencia
