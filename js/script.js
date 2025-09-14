@@ -114,7 +114,7 @@ function initializeGoogleSignIn() {
         google.accounts.id.initialize({
             client_id: GOOGLE_CLIENT_ID,
             callback: handleCredentialResponse,
-            auto_select: false,
+            auto_select: false, // Asegurar que no se seleccione automáticamente
             cancel_on_tap_outside: true
         });
 
@@ -130,12 +130,29 @@ function initializeGoogleSignIn() {
             }
         );
 
-        // Intentar autenticación automática solo si el usuario ya había iniciado sesión
-        google.accounts.id.prompt();
+        // ELIMINADO: google.accounts.id.prompt(); 
+        // Esta línea causaba el intento automático de autenticación
+        
+        console.log('Google Sign-In inicializado correctamente - Solo funciona con botón');
 
     } catch (error) {
         console.error('Error inicializando Google Sign-In:', error);
         showStatus('Error cargando sistema de autenticación. Verifique su conexión.', 'error');
+    }
+}
+
+function manualSignIn() {
+    try {
+        // Solo mostrar el prompt cuando el usuario haga clic manualmente
+        google.accounts.id.prompt((notification) => {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                console.log('Prompt de Google no se mostró:', notification.getNotDisplayedReason());
+                showStatus('No se pudo mostrar el diálogo de Google. Intente recargar la página.', 'error');
+            }
+        });
+    } catch (error) {
+        console.error('Error en sign-in manual:', error);
+        showStatus('Error al intentar iniciar sesión con Google.', 'error');
     }
 }
 
@@ -267,7 +284,7 @@ function signOut() {
         showStatus('Sesión cerrada correctamente.', 'success');
         setTimeout(() => hideStatus(), 3000);
 
-        // Reinicializar Google Sign-In
+        // Reinicializar Google Sign-In (SIN auto-prompt)
         setTimeout(() => {
             initializeGoogleSignIn();
         }, 1000);
