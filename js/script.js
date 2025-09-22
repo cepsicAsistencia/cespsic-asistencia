@@ -750,20 +750,24 @@ function updatePrivacyUI() {
     const signinBtnText = document.getElementById('signin-btn-text');
     
     if (privacyConsent) {
+        // Usuario ya aceptó términos
         revokeSection.style.display = 'block';
         signinBtn.disabled = false;
-        signinBtn.classList.remove('disabled');
+        signinBtn.classList.remove('privacy-required');
         signinBtnText.textContent = 'Iniciar Sesión con Google';
         signinBtn.style.background = '#4285f4';
         signinBtn.style.cursor = 'pointer';
     } else {
+        // Usuario necesita aceptar términos
         revokeSection.style.display = 'none';
-        signinBtn.disabled = false; // Permitir click para mostrar modal
-        signinBtn.classList.remove('disabled');
+        signinBtn.disabled = false; // IMPORTANTE: No deshabilitar
+        signinBtn.classList.add('privacy-required'); // Clase para override CSS
         signinBtnText.textContent = 'Iniciar Sesión con Google';
-        signinBtn.style.background = '#4285f4';
-        signinBtn.style.cursor = 'pointer';
+        signinBtn.style.background = '#4285f4 !important';
+        signinBtn.style.cursor = 'pointer !important';
     }
+    
+    console.log('UI actualizada - privacyConsent:', privacyConsent, 'botón disabled:', signinBtn.disabled);
 }
 
 function requestAuthentication() {
@@ -781,10 +785,19 @@ function requestAuthentication() {
 
 function showPrivacyModal() {
     const modal = document.getElementById('privacy-modal');
-    modal.style.display = 'flex';
+    console.log('Intentando mostrar modal de privacidad');
+    console.log('Modal encontrado:', modal ? 'SI' : 'NO');
     
-    // Manejar escape key
-    document.addEventListener('keydown', handlePrivacyModalEscape);
+    if (modal) {
+        modal.style.display = 'flex';
+        console.log('Modal mostrado, display:', modal.style.display);
+        
+        // Manejar escape key
+        document.addEventListener('keydown', handlePrivacyModalEscape);
+    } else {
+        console.error('No se encontró el modal de privacidad');
+        alert('Modal de privacidad no encontrado. Revise la consola para más detalles.');
+    }
 }
 
 function hidePrivacyModal() {
