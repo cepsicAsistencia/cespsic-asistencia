@@ -157,10 +157,17 @@ h1 {
     margin: 10px 5px;
 }
 
-.google-signin-btn:hover {
+.google-signin-btn:hover:not(:disabled) {
     background: #3367d6;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
+}
+
+.google-signin-btn:disabled {
+    background: #9e9e9e;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 .auth-info {
@@ -192,6 +199,182 @@ h1 {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+/* NUEVOS ESTILOS PARA SECCIÓN DE REVOCAR */
+.revoke-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.revoke-link {
+    background: transparent;
+    border: 1px solid #dc3545;
+    color: #dc3545;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.revoke-link:hover {
+    background: #dc3545;
+    color: white;
+}
+
+/* ESTILOS PARA MODALES */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(5px);
+    animation: modalFadeIn 0.3s ease-out;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.modal-content {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-30px) scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    padding: 20px 25px 15px;
+    border-bottom: 1px solid #e0e0e0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px 15px 0 0;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: white;
+    font-size: 1.3em;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.modal-body {
+    padding: 25px;
+    line-height: 1.6;
+}
+
+.privacy-text {
+    font-size: 15px;
+    color: #333;
+}
+
+.privacy-text p {
+    margin-bottom: 15px;
+}
+
+.privacy-text p:last-child {
+    margin-bottom: 0;
+}
+
+.privacy-text strong {
+    color: #d32f2f;
+    font-weight: 600;
+}
+
+.modal-body ul {
+    margin: 15px 0;
+    padding-left: 20px;
+}
+
+.modal-body li {
+    margin-bottom: 8px;
+    color: #555;
+}
+
+.modal-footer {
+    padding: 15px 25px 20px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+    background: #f8f9fa;
+    border-radius: 0 0 15px 15px;
+}
+
+.btn-accept,
+.btn-reject,
+.btn-danger {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 120px;
+}
+
+.btn-accept {
+    background: #4caf50;
+    color: white;
+}
+
+.btn-accept:hover {
+    background: #45a049;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+.btn-reject {
+    background: #f5f5f5;
+    color: #666;
+    border: 1px solid #ddd;
+}
+
+.btn-reject:hover {
+    background: #e0e0e0;
+    color: #333;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
 }
 
 /* Overlay para formulario deshabilitado */
@@ -655,6 +838,22 @@ input:read-only.location-field.warning {
     .evidencias-preview {
         grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     }
+    
+    .modal-content {
+        max-width: 95%;
+        margin: 20px;
+    }
+    
+    .modal-footer {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .btn-accept,
+    .btn-reject,
+    .btn-danger {
+        width: 100%;
+    }
 }
 
 @media (max-width: 480px) {
@@ -671,5 +870,17 @@ input:read-only.location-field.warning {
     
     .evidencias-preview {
         grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    .modal-header {
+        padding: 15px 20px 10px;
+    }
+    
+    .modal-header h2 {
+        font-size: 1.1em;
     }
 }
