@@ -170,6 +170,11 @@ h1 {
     box-shadow: none;
 }
 
+.google-signin-btn.privacy-required {
+    background: #4285f4 !important;
+    cursor: pointer !important;
+}
+
 .auth-info {
     transition: all 0.3s ease;
 }
