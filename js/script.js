@@ -285,7 +285,7 @@ async function handleSubmit(e) {
         }
         
         // IMPORTANTE: Reemplaza esta URL con tu URL de Google Apps Script
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdzQgYOOawGZc-ZDYhHrBqhfLLYrczeTS7XLdhZ1gnQq8SGAhU7t_dOYuCRJTAwZ-4/exec';
         
         // ENVÍO CON MANEJO DE ERRORES MEJORADO
         const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -407,7 +407,7 @@ async function uploadEvidencias() {
             };
             
             // Enviar a Google Apps Script
-            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzNtxM1ELVjtBJUR5mJXo1GQnDoYB8Jk0KfHsLROYGa0yCWO509ULu9_dk7r_CtNmZ4/exec';
             
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
@@ -699,30 +699,81 @@ function updatePrivacyUI() {
     if (privacyConsent) {
         revokeSection.style.display = 'block';
         signinBtn.disabled = false;
+        signinBtn.classList.remove('disabled');
         signinBtnText.textContent = 'Iniciar Sesión con Google';
         signinBtn.style.background = '#4285f4';
+        signinBtn.style.cursor = 'pointer';
     } else {
         revokeSection.style.display = 'none';
-        signinBtn.disabled = true;
-        signinBtnText.textContent = 'Debe aceptar el aviso de privacidad';
-        signinBtn.style.background = '#9e9e9e';
+        signinBtn.disabled = false; // CAMBIO IMPORTANTE: Permitir click para mostrar modal
+        signinBtn.classList.remove('disabled');
+        signinBtnText.textContent = 'Iniciar Sesión con Google';
+        signinBtn.style.background = '#4285f4';
+        signinBtn.style.cursor = 'pointer';
     }
 }
 
-function enableAuthentication() {
-    const signinBtn = document.getElementById('main-signin-btn');
-    signinBtn.disabled = false;
+function checkPrivacyConsent() {
+    try {
+        const storedConsent = localStorage.getItem('cespsic_privacy_accepted');
+        
+        if (storedConsent) {
+            const consentData = JSON.parse(storedConsent);
+            
+            // Verificar versión del aviso
+            if (consentData.version === PRIVACY_VERSION && consentData.accepted) {
+                privacyConsent = true;
+                updatePrivacyUI();
+                console.log('Permisos de privacidad encontrados y válidos');
+                return;
+            } else {
+                // Versión desactualizada, limpiar
+                localStorage.removeItem('cespsic_privacy_accepted');
+            }
+        }
+        
+        // No hay consentimiento válido
+        privacyConsent = false;
+        updatePrivacyUI();
+        console.log('Sin permisos de privacidad válidos');
+        
+    } catch (error) {
+        console.error('Error verificando consentimiento:', error);
+        privacyConsent = false;
+        updatePrivacyUI();
+    }
 }
 
-function disableAuthentication() {
+function updatePrivacyUI() {
+    const revokeSection = document.getElementById('revoke-section');
     const signinBtn = document.getElementById('main-signin-btn');
-    signinBtn.disabled = true;
+    const signinBtnText = document.getElementById('signin-btn-text');
+    
+    if (privacyConsent) {
+        revokeSection.style.display = 'block';
+        signinBtn.disabled = false;
+        signinBtn.classList.remove('disabled');
+        signinBtnText.textContent = 'Iniciar Sesión con Google';
+        signinBtn.style.background = '#4285f4';
+        signinBtn.style.cursor = 'pointer';
+    } else {
+        revokeSection.style.display = 'none';
+        signinBtn.disabled = false; // Permitir click para mostrar modal
+        signinBtn.classList.remove('disabled');
+        signinBtnText.textContent = 'Iniciar Sesión con Google';
+        signinBtn.style.background = '#4285f4';
+        signinBtn.style.cursor = 'pointer';
+    }
 }
 
 function requestAuthentication() {
+    console.log('Solicitud de autenticación, privacyConsent:', privacyConsent);
+    
     if (!privacyConsent) {
+        console.log('Mostrando modal de privacidad');
         showPrivacyModal();
     } else {
+        console.log('Procediendo con autenticación Google');
         authenticationPurpose = 'login';
         proceedWithGoogleSignIn();
     }
@@ -874,7 +925,7 @@ async function recordPrivacyAction(action) {
             authentication_purpose: authenticationPurpose
         };
         
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdzQgYOOawGZc-ZDYhHrBqhfLLYrczeTS7XLdhZ1gnQq8SGAhU7t_dOYuCRJTAwZ-4/exec';
         
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
