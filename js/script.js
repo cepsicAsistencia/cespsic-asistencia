@@ -285,7 +285,7 @@ async function handleSubmit(e) {
         }
         
         // IMPORTANTE: Reemplaza esta URL con tu URL de Google Apps Script
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdzQgYOOawGZc-ZDYhHrBqhfLLYrczeTS7XLdhZ1gnQq8SGAhU7t_dOYuCRJTAwZ-4/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
         
         // ENVÍO CON MANEJO DE ERRORES MEJORADO
         const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -407,7 +407,7 @@ async function uploadEvidencias() {
             };
             
             // Enviar a Google Apps Script
-            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzNtxM1ELVjtBJUR5mJXo1GQnDoYB8Jk0KfHsLROYGa0yCWO509ULu9_dk7r_CtNmZ4/exec';
+            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
             
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
@@ -938,7 +938,7 @@ async function recordPrivacyAction(action) {
             authentication_purpose: authenticationPurpose
         };
         
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdzQgYOOawGZc-ZDYhHrBqhfLLYrczeTS7XLdhZ1gnQq8SGAhU7t_dOYuCRJTAwZ-4/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
         
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
@@ -996,27 +996,10 @@ function initializeGoogleSignIn() {
             cancel_on_tap_outside: true
         });
 
-        // Renderizar botón oculto que se activará programáticamente
-        const hiddenContainer = document.createElement('div');
-        hiddenContainer.id = 'hidden-signin-container';
-        hiddenContainer.style.position = 'absolute';
-        hiddenContainer.style.top = '-1000px';
-        hiddenContainer.style.left = '-1000px';
-        hiddenContainer.style.visibility = 'hidden';
-        document.body.appendChild(hiddenContainer);
+        // DESHABILITAR completamente One Tap
+        google.accounts.id.disableAutoSelect();
 
-        google.accounts.id.renderButton(
-            hiddenContainer,
-            {
-                theme: "outline",
-                size: "large",
-                text: "signin_with",
-                shape: "rectangular",
-                logo_alignment: "left"
-            }
-        );
-
-        console.log('Google Sign-In inicializado correctamente');
+        console.log('Google Sign-In inicializado correctamente - One Tap deshabilitado');
 
     } catch (error) {
         console.error('Error inicializando Google Sign-In:', error);
@@ -1026,108 +1009,94 @@ function initializeGoogleSignIn() {
 
 function proceedWithGoogleSignIn() {
     try {
-        // Intentar primero con prompt
-        google.accounts.id.prompt((notification) => {
-            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                console.log('One Tap no disponible, usando botón renderizado');
-                
-                // Si One Tap falla, usar el botón oculto
-                const hiddenContainer = document.getElementById('hidden-signin-container');
-                if (hiddenContainer) {
-                    const googleButton = hiddenContainer.querySelector('div[role="button"]');
-                    if (googleButton) {
-                        // Simular clic en el botón de Google
-                        googleButton.click();
-                    } else {
-                        // Último recurso: mostrar botón visible
-                        showVisibleGoogleButton();
-                    }
-                } else {
-                    showVisibleGoogleButton();
-                }
-            }
-        });
+        console.log('Iniciando autenticación Google - saltando prompt');
+        
+        // SALTAR completamente el prompt y ir directo al botón visible
+        showVisibleGoogleButton();
         
     } catch (error) {
         console.error('Error en sign-in:', error);
-        showVisibleGoogleButton();
+        showStatus('Error al intentar iniciar sesión con Google.', 'error');
     }
 }
 
 function showVisibleGoogleButton() {
-    console.log('Mostrando botón de Google visible');
+    console.log('Mostrando botón de Google - método directo');
     
-    // Crear overlay para botón visible
+    // Remover cualquier overlay previo
+    const existingOverlay = document.getElementById('google-auth-overlay');
+    if (existingOverlay) {
+        existingOverlay.remove();
+    }
+    
+    // Crear overlay simple
     const overlay = document.createElement('div');
-    overlay.style.position = 'fixed';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
-    overlay.style.background = 'rgba(0,0,0,0.7)';
-    overlay.style.zIndex = '10000';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
+    overlay.id = 'google-auth-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
     
     const container = document.createElement('div');
-    container.style.background = 'white';
-    container.style.padding = '30px';
-    container.style.borderRadius = '15px';
-    container.style.boxShadow = '0 20px 40px rgba(0,0,0,0.3)';
-    container.style.textAlign = 'center';
-    container.style.maxWidth = '400px';
-    container.style.width = '90%';
+    container.style.cssText = `
+        background: white;
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        text-align: center;
+        max-width: 400px;
+        width: 90%;
+    `;
     
-    const title = document.createElement('h3');
-    title.textContent = 'Autenticación con Google';
-    title.style.marginBottom = '20px';
-    title.style.color = '#333';
-    container.appendChild(title);
-    
-    const description = document.createElement('p');
-    description.textContent = 'Haga clic en el botón para completar la autenticación:';
-    description.style.marginBottom = '20px';
-    description.style.color = '#666';
-    container.appendChild(description);
-    
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.marginBottom = '20px';
-    container.appendChild(buttonContainer);
-    
-    // Renderizar botón de Google en el contenedor visible
-    google.accounts.id.renderButton(
-        buttonContainer,
-        {
-            theme: "filled_blue",
-            size: "large",
-            text: "signin_with",
-            shape: "rectangular"
-        }
-    );
+    container.innerHTML = `
+        <h3 style="margin-bottom: 20px; color: #333;">Autenticación con Google</h3>
+        <p style="margin-bottom: 20px; color: #666;">Haga clic en el botón azul para continuar:</p>
+        <div id="google-button-container" style="margin-bottom: 20px;"></div>
+    `;
     
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancelar';
-    cancelBtn.style.padding = '10px 20px';
-    cancelBtn.style.backgroundColor = '#f5f5f5';
-    cancelBtn.style.border = '1px solid #ddd';
-    cancelBtn.style.borderRadius = '5px';
-    cancelBtn.style.cursor = 'pointer';
-    cancelBtn.style.marginTop = '10px';
-    cancelBtn.onclick = () => {
-        document.body.removeChild(overlay);
-    };
-    container.appendChild(cancelBtn);
+    cancelBtn.style.cssText = `
+        padding: 10px 20px;
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 10px;
+    `;
+    cancelBtn.onclick = () => overlay.remove();
     
+    container.appendChild(cancelBtn);
     overlay.appendChild(container);
     document.body.appendChild(overlay);
     
-    // Auto-cleanup después de 2 minutos
+    // Renderizar botón de Google DESPUÉS de añadir al DOM
+    setTimeout(() => {
+        const buttonContainer = document.getElementById('google-button-container');
+        if (buttonContainer) {
+            google.accounts.id.renderButton(buttonContainer, {
+                theme: "filled_blue",
+                size: "large",
+                text: "signin_with",
+                shape: "rectangular"
+            });
+        }
+    }, 100);
+    
+    // Auto-cleanup después de 5 minutos
     setTimeout(() => {
         if (overlay.parentNode) {
-            document.body.removeChild(overlay);
+            overlay.remove();
         }
-    }, 120000);
+    }, 300000);
 }
 
 async function handleCredentialResponse(response) {
