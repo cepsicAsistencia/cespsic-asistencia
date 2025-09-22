@@ -720,15 +720,18 @@ function checkPrivacyConsent() {
         if (storedConsent) {
             const consentData = JSON.parse(storedConsent);
             
-            // Verificar versión del aviso
-            if (consentData.version === PRIVACY_VERSION && consentData.accepted) {
+            // Verificar versión del aviso Y que tenga usuario autenticado
+            if (consentData.version === PRIVACY_VERSION && 
+                consentData.accepted && 
+                consentData.authenticated_user) {
                 privacyConsent = true;
                 updatePrivacyUI();
-                console.log('Permisos de privacidad encontrados y válidos');
+                console.log('Permisos de privacidad encontrados y válidos para:', consentData.authenticated_user);
                 return;
             } else {
-                // Versión desactualizada, limpiar
+                // Versión desactualizada o sin usuario autenticado, limpiar
                 localStorage.removeItem('cespsic_privacy_accepted');
+                console.log('Consentimiento inválido o incompleto - limpiado');
             }
         }
         
@@ -739,6 +742,8 @@ function checkPrivacyConsent() {
         
     } catch (error) {
         console.error('Error verificando consentimiento:', error);
+        // En caso de error, limpiar localStorage por seguridad
+        localStorage.removeItem('cespsic_privacy_accepted');
         privacyConsent = false;
         updatePrivacyUI();
     }
@@ -814,29 +819,20 @@ function handlePrivacyModalEscape(e) {
 
 function acceptPrivacy() {
     try {
-        // Guardar consentimiento en localStorage
-        const consentData = {
-            accepted: true,
-            timestamp: new Date().toISOString(),
-            version: PRIVACY_VERSION,
-            userAgent: navigator.userAgent
-        };
-        
-        localStorage.setItem('cespsic_privacy_accepted', JSON.stringify(consentData));
-        
-        privacyConsent = true;
+        // NO guardar en localStorage todavía - solo marcar temporalmente
+        privacyConsent = true; // Solo en memoria
         updatePrivacyUI();
         hidePrivacyModal();
         
-        // Proceder con autenticación
+        // Proceder con autenticación - solo si se completa exitosamente se guardará
         authenticationPurpose = 'login';
         proceedWithGoogleSignIn();
         
-        console.log('Aviso de privacidad aceptado');
+        console.log('Aviso de privacidad aceptado temporalmente - pendiente autenticación');
         
     } catch (error) {
         console.error('Error guardando consentimiento:', error);
-        showStatus('Error al guardar consentimiento. Intente nuevamente.', 'error');
+        showStatus('Error al procesar aceptación. Intente nuevamente.', 'error');
     }
 }
 
@@ -1181,6 +1177,15 @@ async function handleCredentialResponse(response) {
 function closeAuthModal() {
     console.log('Cerrando modal de autenticación...');
     
+    // Si se cierra el modal sin completar autenticación, revertir consentimiento temporal
+    if (privacyConsent && !isAuthenticated) {
+        console.log('Autenticación cancelada - revirtiendo consentimiento temporal');
+        privacyConsent = false;
+        updatePrivacyUI();
+        showStatus('Debe completar la autenticación para continuar usando la aplicación.', 'error');
+        setTimeout(() => hideStatus(), 5000);
+    }
+    
     // Método 1: Por ID
     const authOverlay = document.getElementById('google-auth-overlay');
     if (authOverlay) {
@@ -1224,6 +1229,20 @@ function closeAuthModal() {
 
 async function handleLoginFlow() {
     try {
+        // IMPORTANTE: Solo AHORA guardar la aceptación de privacidad en localStorage
+        // porque la autenticación fue exitosa
+        const consentData = {
+            accepted: true,
+            timestamp: new Date().toISOString(),
+            version: PRIVACY_VERSION,
+            userAgent: navigator.userAgent,
+            authenticated_user: currentUser.email,
+            authentication_timestamp: new Date().toISOString()
+        };
+        
+        localStorage.setItem('cespsic_privacy_accepted', JSON.stringify(consentData));
+        console.log('Consentimiento guardado en localStorage después de autenticación exitosa');
+        
         // Registrar aceptación de privacidad en backend
         await recordPrivacyAction('PRIVACY_ACCEPTED');
         
@@ -1245,6 +1264,11 @@ async function handleLoginFlow() {
 
     } catch (error) {
         console.error('Error en flujo de login:', error);
+        
+        // Si hay error, revertir el consentimiento temporal
+        privacyConsent = false;
+        updatePrivacyUI();
+        
         showStatus('Error registrando la autenticación. Intente nuevamente.', 'error');
     }
 }
