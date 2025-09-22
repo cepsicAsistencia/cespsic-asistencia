@@ -981,9 +981,38 @@ function loadGoogleSignInScript() {
     // El script ya se carga en el HTML, solo inicializamos cuando esté listo
     if (typeof google !== 'undefined' && google.accounts) {
         initializeGoogleSignIn();
+        
+        // PREVENIR completamente cualquier prompt automático
+        blockGooglePrompts();
     } else {
         // Esperar a que se cargue el script
         setTimeout(loadGoogleSignInScript, 100);
+    }
+}
+
+function blockGooglePrompts() {
+    try {
+        // Deshabilitar y cancelar cualquier prompt
+        google.accounts.id.disableAutoSelect();
+        google.accounts.id.cancel();
+        
+        // Interceptar y bloquear futuros prompts
+        const originalPrompt = google.accounts.id.prompt;
+        google.accounts.id.prompt = function(callback) {
+            console.log('PROMPT BLOQUEADO - redirigiendo a botón manual');
+            if (callback) {
+                callback({
+                    isNotDisplayed: () => true,
+                    isSkippedMoment: () => true,
+                    getNotDisplayedReason: () => 'BLOCKED_BY_APP'
+                });
+            }
+        };
+        
+        console.log('Google prompts completamente bloqueados');
+        
+    } catch (error) {
+        console.error('Error bloqueando prompts:', error);
     }
 }
 
@@ -996,10 +1025,13 @@ function initializeGoogleSignIn() {
             cancel_on_tap_outside: true
         });
 
-        // DESHABILITAR completamente One Tap
+        // FORZAR deshabilitación de One Tap en todos los dispositivos
         google.accounts.id.disableAutoSelect();
+        
+        // Prevenir cualquier prompt automático
+        google.accounts.id.cancel();
 
-        console.log('Google Sign-In inicializado correctamente - One Tap deshabilitado');
+        console.log('Google Sign-In inicializado - One Tap completamente deshabilitado');
 
     } catch (error) {
         console.error('Error inicializando Google Sign-In:', error);
@@ -1101,6 +1133,15 @@ function showVisibleGoogleButton() {
 
 async function handleCredentialResponse(response) {
     try {
+        console.log('Credenciales recibidas, cerrando modal de autenticación');
+        
+        // CERRAR inmediatamente el modal de Google
+        const authOverlay = document.getElementById('google-auth-overlay');
+        if (authOverlay) {
+            authOverlay.remove();
+            console.log('Modal de autenticación cerrado');
+        }
+        
         // Decodificar el JWT token para obtener la información del usuario
         const userInfo = parseJwt(response.credential);
         
@@ -1128,6 +1169,12 @@ async function handleCredentialResponse(response) {
     } catch (error) {
         console.error('Error procesando credenciales:', error);
         showStatus('Error en la autenticación. Intente nuevamente.', 'error');
+        
+        // Cerrar modal en caso de error también
+        const authOverlay = document.getElementById('google-auth-overlay');
+        if (authOverlay) {
+            authOverlay.remove();
+        }
     }
 }
 
