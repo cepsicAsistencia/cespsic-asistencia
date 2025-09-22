@@ -285,7 +285,7 @@ async function handleSubmit(e) {
         }
         
         // IMPORTANTE: Reemplaza esta URL con tu URL de Google Apps Script
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdzQgYOOawGZc-ZDYhHrBqhfLLYrczeTS7XLdhZ1gnQq8SGAhU7t_dOYuCRJTAwZ-4/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
         
         // ENVÍO CON MANEJO DE ERRORES MEJORADO
         const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -407,7 +407,7 @@ async function uploadEvidencias() {
             };
             
             // Enviar a Google Apps Script
-            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzNtxM1ELVjtBJUR5mJXo1GQnDoYB8Jk0KfHsLROYGa0yCWO509ULu9_dk7r_CtNmZ4/exec';
+            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
             
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
@@ -874,7 +874,7 @@ async function recordPrivacyAction(action) {
             authentication_purpose: authenticationPurpose
         };
         
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdzQgYOOawGZc-ZDYhHrBqhfLLYrczeTS7XLdhZ1gnQq8SGAhU7t_dOYuCRJTAwZ-4/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
         
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
