@@ -1061,20 +1061,22 @@ function showVisibleGoogleButton() {
         existingOverlay.remove();
     }
     
-    // Crear overlay simple
+    // Crear overlay simple con atributos adicionales para identificación
     const overlay = document.createElement('div');
     overlay.id = 'google-auth-overlay';
+    overlay.className = 'google-auth-modal';
+    overlay.setAttribute('data-modal-type', 'google-auth');
     overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.7);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: rgba(0,0,0,0.7) !important;
+        z-index: 10000 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     `;
     
     const container = document.createElement('div');
@@ -1104,7 +1106,14 @@ function showVisibleGoogleButton() {
         cursor: pointer;
         margin-top: 10px;
     `;
-    cancelBtn.onclick = () => overlay.remove();
+    cancelBtn.onclick = () => closeAuthModal();
+    
+    // Cerrar modal al hacer clic fuera del contenedor
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            closeAuthModal();
+        }
+    };
     
     container.appendChild(cancelBtn);
     overlay.appendChild(container);
@@ -1125,22 +1134,16 @@ function showVisibleGoogleButton() {
     
     // Auto-cleanup después de 5 minutos
     setTimeout(() => {
-        if (overlay.parentNode) {
-            overlay.remove();
-        }
+        closeAuthModal();
     }, 300000);
 }
 
 async function handleCredentialResponse(response) {
     try {
-        console.log('Credenciales recibidas, cerrando modal de autenticación');
+        console.log('Credenciales recibidas, iniciando cierre del modal');
         
-        // CERRAR inmediatamente el modal de Google
-        const authOverlay = document.getElementById('google-auth-overlay');
-        if (authOverlay) {
-            authOverlay.remove();
-            console.log('Modal de autenticación cerrado');
-        }
+        // MÉTODO 1: Cerrar inmediatamente el modal de Google
+        closeAuthModal();
         
         // Decodificar el JWT token para obtener la información del usuario
         const userInfo = parseJwt(response.credential);
@@ -1171,11 +1174,52 @@ async function handleCredentialResponse(response) {
         showStatus('Error en la autenticación. Intente nuevamente.', 'error');
         
         // Cerrar modal en caso de error también
-        const authOverlay = document.getElementById('google-auth-overlay');
-        if (authOverlay) {
-            authOverlay.remove();
-        }
+        closeAuthModal();
     }
+}
+
+function closeAuthModal() {
+    console.log('Cerrando modal de autenticación...');
+    
+    // Método 1: Por ID
+    const authOverlay = document.getElementById('google-auth-overlay');
+    if (authOverlay) {
+        authOverlay.remove();
+        console.log('Modal cerrado por ID');
+        return;
+    }
+    
+    // Método 2: Por clase/atributos
+    const overlays = document.querySelectorAll('[id*="google"], [class*="google"], [style*="position: fixed"]');
+    overlays.forEach(overlay => {
+        if (overlay.style.zIndex === '10000' || overlay.style.zIndex > 1000) {
+            overlay.remove();
+            console.log('Modal cerrado por selector');
+        }
+    });
+    
+    // Método 3: Buscar por contenido específico
+    const allDivs = document.querySelectorAll('div');
+    allDivs.forEach(div => {
+        if (div.textContent && div.textContent.includes('Autenticación con Google')) {
+            const parent = div.closest('div[style*="position: fixed"]');
+            if (parent) {
+                parent.remove();
+                console.log('Modal cerrado por contenido');
+            }
+        }
+    });
+    
+    // Método 4: Timeout como último recurso
+    setTimeout(() => {
+        const remainingOverlays = document.querySelectorAll('div[style*="position: fixed"][style*="z-index"]');
+        remainingOverlays.forEach(overlay => {
+            if (overlay.style.zIndex >= 10000) {
+                overlay.remove();
+                console.log('Modal cerrado por timeout');
+            }
+        });
+    }, 500);
 }
 
 async function handleLoginFlow() {
