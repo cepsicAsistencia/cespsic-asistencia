@@ -1,670 +1,3 @@
-// Variables globales
-let currentLocation = null;
-let userEmail = null;
-let isAuthenticated = false;
-let locationValid = false;
-let locationAttempts = 0;
-let currentUser = null;
-let selectedFiles = [];
-const MAX_LOCATION_ATTEMPTS = 3;
-const REQUIRED_ACCURACY = 50; // metros
-const MAX_FILES = 5;
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
-// IMPORTANTE: Reemplaza con tu Google Client ID
-const GOOGLE_CLIENT_ID = '799841037062-kal4vump3frc2f8d33bnp4clc9amdnng.apps.googleusercontent.com';
-
-// Ubicaciones conocidas de la UAS
-const ubicacionesUAS = [
-    {
-        name: "Facultad de Psicología UAS",
-        description: "Campus de la Universidad Autónoma de Sinaloa - Facultad de Psicología",
-        lat: 24.7993,
-        lng: -107.3950,
-        radius: 100
-    },
-    {
-        name: "CESPSIC - Centro de Servicios Psicológicos",
-        description: "Centro de atención psicológica de la UAS",
-        lat: 24.7995,
-        lng: -107.3948,
-        radius: 50
-    },
-    {
-        name: "Universidad Autónoma de Sinaloa - Campus Central",
-        description: "Campus principal de la UAS",
-        lat: 24.7990,
-        lng: -107.3950,
-        radius: 200
-    }
-];
-
-// Inicializar formulario
-document.addEventListener('DOMContentLoaded', function() {
-    // Verificar navegador
-    if (!isGoogleChrome()) {
-        showStatus('⚠️ Este formulario funciona mejor en Google Chrome. Algunas funciones podrían no estar disponibles.', 'error');
-    }
-    
-    initializeForm();
-    setupEventListeners();
-    loadGoogleSignInScript();
-    updateCurrentTime();
-    
-    // Actualizar hora cada segundo
-    setInterval(updateCurrentTime, 1000);
-});
-
-function initializeForm() {
-    // Establecer fecha actual (solo lectura)
-    const today = new Date();
-    document.getElementById('fecha').value = today.toISOString().split('T')[0];
-    
-    // Establecer hora actual (solo lectura)
-    updateCurrentTime();
-    
-    // Establecer timestamp
-    document.getElementById('timestamp').value = new Date().toISOString();
-}
-
-function updateCurrentTime() {
-    const now = new Date();
-    const timeString = now.toTimeString().slice(0, 5); // HH:MM formato
-    document.getElementById('hora').value = timeString;
-}
-
-function isGoogleChrome() {
-    const isChromium = window.chrome;
-    const winNav = window.navigator;
-    const vendorName = winNav.vendor;
-    const isOpera = typeof window.opr !== "undefined";
-    const isIEedge = winNav.userAgent.indexOf("Edg") > -1;
-    const isIOSChrome = winNav.userAgent.match("CriOS");
-
-    if (isIOSChrome) {
-        return true;
-    } else if (
-        isChromium !== null &&
-        typeof isChromium !== "undefined" &&
-        vendorName === "Google Inc." &&
-        isOpera === false &&
-        isIEedge === false
-    ) {
-        return true;
-    } else { 
-        return false;
-    }
-}
-
-// ========== GOOGLE SIGN-IN FUNCTIONS ==========
-
-function loadGoogleSignInScript() {
-    // El script ya se carga en el HTML, solo inicializamos cuando esté listo
-    if (typeof google !== 'undefined' && google.accounts) {
-        initializeGoogleSignIn();
-    } else {
-        // Esperar a que se cargue el script
-        setTimeout(loadGoogleSignInScript, 100);
-    }
-}
-
-function initializeGoogleSignIn() {
-    try {
-        google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: handleCredentialResponse,
-            auto_select: false, // Asegurar que no se seleccione automáticamente
-            cancel_on_tap_outside: true
-        });
-
-        // Renderizar el botón de Google Sign-In
-        google.accounts.id.renderButton(
-            document.getElementById("signin-button-container"),
-            {
-                theme: "outline",
-                size: "large",
-                text: "signin_with",
-                shape: "rectangular",
-                logo_alignment: "left"
-            }
-        );
-
-        // ELIMINADO: google.accounts.id.prompt(); 
-        // Esta línea causaba el intento automático de autenticación
-        
-        console.log('Google Sign-In inicializado correctamente - Solo funciona con botón');
-
-    } catch (error) {
-        console.error('Error inicializando Google Sign-In:', error);
-        showStatus('Error cargando sistema de autenticación. Verifique su conexión.', 'error');
-    }
-}
-
-function manualSignIn() {
-    try {
-        // Solo mostrar el prompt cuando el usuario haga clic manualmente
-        google.accounts.id.prompt((notification) => {
-            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                console.log('Prompt de Google no se mostró:', notification.getNotDisplayedReason());
-                showStatus('No se pudo mostrar el diálogo de Google. Intente recargar la página.', 'error');
-            }
-        });
-    } catch (error) {
-        console.error('Error en sign-in manual:', error);
-        showStatus('Error al intentar iniciar sesión con Google.', 'error');
-    }
-}
-
-function handleCredentialResponse(response) {
-    try {
-        // Decodificar el JWT token para obtener la información del usuario
-        const userInfo = parseJwt(response.credential);
-        
-        currentUser = {
-            id: userInfo.sub,
-            email: userInfo.email,
-            name: userInfo.name,
-            picture: userInfo.picture,
-            email_verified: userInfo.email_verified
-        };
-
-        // Verificar que el email esté verificado
-        if (!currentUser.email_verified) {
-            showStatus('Su cuenta de Gmail no está verificada. Use una cuenta verificada.', 'error');
-            return;
-        }
-
-        // Actualizar estado de autenticación
-        isAuthenticated = true;
-        userEmail = currentUser.email;
-        document.getElementById('email').value = userEmail;
-        document.getElementById('google_user_id').value = currentUser.id;
-
-        // Actualizar interfaz
-        updateAuthenticationUI();
-        enableForm();
-        
-        // Iniciar proceso de ubicación
-        getCurrentLocation();
-
-        showStatus(`¡Bienvenido ${currentUser.name}! Autenticación exitosa.`, 'success');
-        setTimeout(() => hideStatus(), 3000);
-
-    } catch (error) {
-        console.error('Error procesando credenciales:', error);
-        showStatus('Error en la autenticación. Intente nuevamente.', 'error');
-    }
-}
-
-function parseJwt(token) {
-    try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        return JSON.parse(jsonPayload);
-    } catch (error) {
-        console.error('Error parsing JWT:', error);
-        return null;
-    }
-}
-
-function updateAuthenticationUI() {
-    const authSection = document.getElementById('auth-section');
-    const authTitle = document.getElementById('auth-title');
-    const userInfo = document.getElementById('user-info');
-    const signinContainer = document.getElementById('signin-button-container');
-
-    if (isAuthenticated && currentUser) {
-        // Actualizar sección de autenticación
-        authSection.classList.add('authenticated');
-        authTitle.textContent = '✅ Autenticación Exitosa';
-        authTitle.classList.add('authenticated');
-
-        // Mostrar información del usuario
-        document.getElementById('user-avatar').src = currentUser.picture;
-        document.getElementById('user-email').textContent = currentUser.email;
-        document.getElementById('user-name').textContent = currentUser.name;
-        userInfo.classList.add('show');
-
-        // Ocultar botón de inicio de sesión
-        signinContainer.style.display = 'none';
-
-    } else {
-        // Resetear al estado no autenticado
-        authSection.classList.remove('authenticated');
-        authTitle.textContent = '🔒 Autenticación Requerida';
-        authTitle.classList.remove('authenticated');
-        userInfo.classList.remove('show');
-        signinContainer.style.display = 'block';
-    }
-}
-
-function enableForm() {
-    const formContainer = document.getElementById('form-container');
-    formContainer.classList.add('authenticated');
-}
-
-function disableForm() {
-    const formContainer = document.getElementById('form-container');
-    formContainer.classList.remove('authenticated');
-    locationValid = false;
-    updateSubmitButton();
-}
-
-function signOut() {
-    try {
-        // Cerrar sesión de Google
-        google.accounts.id.disableAutoSelect();
-        
-        // Resetear variables
-        isAuthenticated = false;
-        currentUser = null;
-        userEmail = null;
-        locationValid = false;
-        currentLocation = null;
-        locationAttempts = 0;
-        selectedFiles = [];
-
-        // Limpiar campos ocultos
-        document.getElementById('email').value = '';
-        document.getElementById('google_user_id').value = '';
-        document.getElementById('latitude').value = '';
-        document.getElementById('longitude').value = '';
-        document.getElementById('location_status').value = '';
-
-        // Actualizar interfaz
-        updateAuthenticationUI();
-        disableForm();
-        resetLocationFields();
-        resetEvidenciasSection();
-
-        showStatus('Sesión cerrada correctamente.', 'success');
-        setTimeout(() => hideStatus(), 3000);
-
-        // Reinicializar Google Sign-In (SIN auto-prompt)
-        setTimeout(() => {
-            initializeGoogleSignIn();
-        }, 1000);
-
-    } catch (error) {
-        console.error('Error cerrando sesión:', error);
-        showStatus('Error al cerrar sesión.', 'error');
-    }
-}
-
-// ========== EVIDENCIAS FUNCTIONS ==========
-
-function setupEvidenciasHandlers() {
-    const evidenciasInput = document.getElementById('evidencias');
-    
-    evidenciasInput.addEventListener('change', function(e) {
-        handleFileSelection(e.target.files);
-    });
-    
-    // Drag and drop functionality
-    const evidenciasContainer = document.querySelector('.evidencias-container');
-    
-    evidenciasContainer.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        evidenciasContainer.style.borderColor = '#4854c7';
-        evidenciasContainer.style.background = 'linear-gradient(135deg, #e8ebff 0%, #d6dbff 100%)';
-    });
-    
-    evidenciasContainer.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        evidenciasContainer.style.borderColor = '#667eea';
-        evidenciasContainer.style.background = 'linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%)';
-    });
-    
-    evidenciasContainer.addEventListener('drop', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        evidenciasContainer.style.borderColor = '#667eea';
-        evidenciasContainer.style.background = 'linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%)';
-        
-        const files = e.dataTransfer.files;
-        handleFileSelection(files);
-    });
-}
-
-function handleFileSelection(files) {
-    const fileArray = Array.from(files);
-    const validFiles = [];
-    const errors = [];
-    
-    // Validar cada archivo
-    fileArray.forEach(file => {
-        // Verificar tipo de archivo
-        if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-            errors.push(`${file.name}: Tipo de archivo no válido. Solo se permiten JPG, PNG y WEBP.`);
-            return;
-        }
-        
-        // Verificar tamaño de archivo
-        if (file.size > MAX_FILE_SIZE) {
-            errors.push(`${file.name}: Archivo demasiado grande. Máximo ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
-            return;
-        }
-        
-        validFiles.push(file);
-    });
-    
-    // Verificar límite total de archivos
-    if (selectedFiles.length + validFiles.length > MAX_FILES) {
-        errors.push(`Solo puede subir máximo ${MAX_FILES} imágenes. Actualmente tiene ${selectedFiles.length} seleccionadas.`);
-        showEvidenciasStatus(errors.join('<br>'), 'error');
-        return;
-    }
-    
-    // Mostrar errores si los hay
-    if (errors.length > 0) {
-        showEvidenciasStatus(errors.join('<br>'), 'error');
-    }
-    
-    // Agregar archivos válidos
-    validFiles.forEach(file => {
-        selectedFiles.push(file);
-        addFilePreview(file, selectedFiles.length - 1);
-    });
-    
-    // Actualizar input
-    updateFileInput();
-    
-    // Mostrar estado exitoso si se agregaron archivos
-    if (validFiles.length > 0) {
-        showEvidenciasStatus(`${validFiles.length} imagen(es) agregada(s) correctamente. Total: ${selectedFiles.length}/${MAX_FILES}`, 'success');
-    }
-}
-
-function addFilePreview(file, index) {
-    const preview = document.getElementById('evidencias-preview');
-    const fileItem = document.createElement('div');
-    fileItem.className = 'evidencia-item';
-    fileItem.dataset.index = index;
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        fileItem.innerHTML = `
-            <img src="${e.target.result}" alt="Evidencia ${index + 1}">
-            <div class="evidencia-info">
-                ${file.name.length > 15 ? file.name.substring(0, 15) + '...' : file.name}<br>
-                <small>${(file.size / 1024).toFixed(1)} KB</small>
-            </div>
-            <button type="button" class="evidencia-remove" onclick="removeFile(${index})">×</button>
-        `;
-    };
-    reader.readAsDataURL(file);
-    
-    preview.appendChild(fileItem);
-}
-
-function removeFile(index) {
-    // Remover archivo del array
-    selectedFiles.splice(index, 1);
-    
-    // Actualizar vista previa
-    updatePreview();
-    
-    // Actualizar input
-    updateFileInput();
-    
-    showEvidenciasStatus(`Imagen removida. Total: ${selectedFiles.length}/${MAX_FILES}`, 'success');
-}
-
-function updatePreview() {
-    const preview = document.getElementById('evidencias-preview');
-    preview.innerHTML = '';
-    
-    selectedFiles.forEach((file, index) => {
-        addFilePreview(file, index);
-    });
-}
-
-function updateFileInput() {
-    const input = document.getElementById('evidencias');
-    const dt = new DataTransfer();
-    
-    selectedFiles.forEach(file => {
-        dt.items.add(file);
-    });
-    
-    input.files = dt.files;
-}
-
-function showEvidenciasStatus(message, type) {
-    const status = document.getElementById('evidencias-status');
-    status.innerHTML = message;
-    status.className = `evidencias-status ${type}`;
-    
-    // Auto-hide después de 5 segundos para mensajes de éxito
-    if (type === 'success') {
-        setTimeout(() => {
-            status.style.display = 'none';
-        }, 5000);
-    }
-}
-
-function resetEvidenciasSection() {
-    selectedFiles = [];
-    document.getElementById('evidencias').value = '';
-    document.getElementById('evidencias-preview').innerHTML = '';
-    document.getElementById('evidencias-status').style.display = 'none';
-}
-
-// ========== LOCATION FUNCTIONS ==========
-
-function setupEventListeners() {
-    // Configurar manejadores de evidencias
-    setupEvidenciasHandlers();
-    
-    // Mostrar/ocultar sección de salida y evidencias
-    document.getElementById('tipo_registro').addEventListener('change', function() {
-        const salidaSection = document.getElementById('salida_section');
-        const evidenciasSection = document.getElementById('evidencias_section');
-        const permisoSection = document.getElementById('permiso_detalle_section');
-        const otroSection = document.getElementById('otro_detalle_section');
-        const permisoTextarea = document.getElementById('permiso_detalle');
-        const otroTextarea = document.getElementById('otro_detalle');
-        
-        // Ocultar todas las secciones primero
-        salidaSection.classList.remove('show');
-        evidenciasSection.style.display = 'none';
-        permisoSection.classList.remove('show');
-        otroSection.classList.remove('show');
-        permisoTextarea.required = false;
-        otroTextarea.required = false;
-        permisoTextarea.value = '';
-        otroTextarea.value = '';
-        
-        // Resetear evidencias cuando no es salida
-        if (this.value !== 'salida') {
-            resetEvidenciasSection();
-        }
-        
-        // Mostrar la sección correspondiente
-        if (this.value === 'salida') {
-            salidaSection.classList.add('show');
-            evidenciasSection.style.display = 'block'; // Mostrar evidencias solo para salida
-        } else if (this.value === 'permiso') {
-            permisoSection.classList.add('show');
-            permisoTextarea.required = true;
-        } else if (this.value === 'otro') {
-            otroSection.classList.add('show');
-            otroTextarea.required = true;
-        }
-    });
-
-    // Mostrar/ocultar grupos de edad según intervenciones
-    document.getElementById('intervenciones_psicologicas').addEventListener('input', function() {
-        const gruposSection = document.getElementById('grupos_edad_section');
-        if (parseInt(this.value) > 0) {
-            gruposSection.classList.add('show');
-        } else {
-            gruposSection.classList.remove('show');
-        }
-    });
-
-    // Campos condicionales para actividades varias
-    document.getElementById('actividades_varias').addEventListener('change', function() {
-        const detalle = document.getElementById('actividades_varias_detalle');
-        const textarea = document.getElementById('actividades_varias_texto');
-        if (this.checked) {
-            detalle.classList.add('show');
-            textarea.required = true;
-        } else {
-            detalle.classList.remove('show');
-            textarea.required = false;
-            textarea.value = '';
-        }
-    });
-
-    // Campos condicionales para pruebas psicológicas
-    document.getElementById('pruebas_psicologicas').addEventListener('change', function() {
-        const detalle = document.getElementById('pruebas_psicologicas_detalle');
-        const textarea = document.getElementById('pruebas_psicologicas_texto');
-        if (this.checked) {
-            detalle.classList.add('show');
-            textarea.required = true;
-        } else {
-            detalle.classList.remove('show');
-            textarea.required = false;
-            textarea.value = '';
-        }
-    });
-
-    // Botón de reintentar ubicación
-    document.getElementById('retry_location_btn').addEventListener('click', function() {
-        if (!isAuthenticated) {
-            showStatus('Debe autenticarse primero antes de solicitar ubicación.', 'error');
-            return;
-        }
-        locationAttempts = 0;
-        getCurrentLocation();
-    });
-
-    // Manejo del formulario
-    document.getElementById('attendanceForm').addEventListener('submit', handleSubmit);
-}
-
-function getCurrentLocation() {
-    if (!isAuthenticated) {
-        updateLocationStatus('error', 'Autenticación requerida', 'Complete la autenticación para obtener ubicación GPS');
-        document.getElementById('ubicacion_detectada').value = 'Esperando autenticación...';
-        document.getElementById('direccion_completa').value = 'Esperando autenticación...';
-        document.getElementById('precision_gps').value = 'Esperando autenticación...';
-        document.getElementById('location_status').value = 'Autenticación requerida';
-        return;
-    }
-
-    if (!navigator.geolocation) {
-        updateLocationStatus('error', 'Geolocalización no soportada', 'Su navegador no soporta geolocalización');
-        document.getElementById('ubicacion_detectada').value = 'Navegador no compatible';
-        document.getElementById('direccion_completa').value = 'No disponible';
-        document.getElementById('precision_gps').value = 'Sin soporte';
-        document.getElementById('location_status').value = 'Geolocalización no soportada';
-        return;
-    }
-
-    locationAttempts++;
-    updateLocationStatus('loading', `Obteniendo ubicación GPS... (Intento ${locationAttempts}/${MAX_LOCATION_ATTEMPTS})`, '');
-
-    const options = {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0
-    };
-    
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            currentLocation = {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-                accuracy: position.coords.accuracy
-            };
-            
-            document.getElementById('latitude').value = currentLocation.latitude;
-            document.getElementById('longitude').value = currentLocation.longitude;
-            
-            // Validar precisión
-            if (currentLocation.accuracy <= REQUIRED_ACCURACY) {
-                locationValid = true;
-                document.getElementById('location_status').value = 'success';
-                updateLocationStatus('success', 'Ubicación obtenida correctamente', 
-                    `Precisión: ${Math.round(currentLocation.accuracy)} metros`);
-                updateSubmitButton();
-                
-                // Actualizar campos de ubicación
-                updateLocationFields(currentLocation);
-            } else {
-                locationValid = false;
-                document.getElementById('location_status').value = `error: Precisión insuficiente (${Math.round(currentLocation.accuracy)}m)`;
-                updateLocationStatus('warning', 'Precisión GPS insuficiente', 
-                    `Se requiere precisión de ${REQUIRED_ACCURACY}m o menos. Actual: ${Math.round(currentLocation.accuracy)}m`);
-                
-                if (locationAttempts < MAX_LOCATION_ATTEMPTS) {
-                    setTimeout(() => {
-                        updateLocationStatus('loading', 'Reintentando obtener mejor precisión...', '');
-                        getCurrentLocation();
-                    }, 2000);
-                } else {
-                    updateLocationStatus('error', 'No se pudo obtener la precisión requerida', 
-                        `Después de ${MAX_LOCATION_ATTEMPTS} intentos. Muévase a un área con mejor señal GPS.`);
-                    document.getElementById('retry_location_btn').style.display = 'block';
-                }
-            }
-        },
-        function(error) {
-            locationValid = false;
-            console.error('Error obteniendo ubicación:', error);
-            let errorMessage = '';
-            let errorDescription = '';
-            
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    errorMessage = 'Permisos de ubicación denegados';
-                    errorDescription = 'Por favor, permita el acceso a la ubicación y recargue la página';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    errorMessage = 'Ubicación no disponible';
-                    errorDescription = 'No se pudo determinar su ubicación. Verifique su conexión GPS';
-                    break;
-                case error.TIMEOUT:
-                    errorMessage = 'Tiempo de espera agotado';
-                    errorDescription = 'La solicitud de ubicación tardó demasiado. Intente nuevamente';
-                    break;
-                default:
-                    errorMessage = 'Error desconocido de geolocalización';
-                    errorDescription = 'Error inesperado al obtener la ubicación';
-            }
-            
-            document.getElementById('location_status').value = 'error: ' + errorMessage;
-            updateLocationStatus('error', errorMessage, errorDescription);
-            
-            // Actualizar campos con error
-            document.getElementById('ubicacion_detectada').value = 'Error: ' + errorMessage;
-            document.getElementById('direccion_completa').value = 'No disponible';
-            document.getElementById('precision_gps').value = 'Sin datos';
-            document.getElementById('ubicacion_detectada').className = 'location-field error';
-            document.getElementById('direccion_completa').className = 'location-field error';
-            document.getElementById('precision_gps').className = 'location-field error';
-            
-            if (locationAttempts < MAX_LOCATION_ATTEMPTS && error.code !== error.PERMISSION_DENIED) {
-                setTimeout(() => {
-                    getCurrentLocation();
-                }, 3000);
-            } else {
-                document.getElementById('retry_location_btn').style.display = 'block';
-            }
-        },
-        options
-    );
-}
-
 function updateLocationStatus(type, message, description) {
     const statusDiv = document.getElementById('location_status_display');
     const icons = {
@@ -946,7 +279,7 @@ async function handleSubmit(e) {
         
         // Verificar que modalidad no esté vacía
         if (!data.modalidad || data.modalidad === '') {
-            showStatus('❌ Error: El campo Modalidad es requerido y no puede estar vacío.', 'error');
+            showStatus('Error: El campo Modalidad es requerido y no puede estar vacío.', 'error');
             updateSubmitButton();
             return;
         }
@@ -992,7 +325,7 @@ async function handleSubmit(e) {
         
     } catch (error) {
         console.error('Error al enviar:', error);
-        showStatus('Error al guardar en Google Sheets. Verifique su conexión e intente nuevamente. ❌', 'error');
+        showStatus('Error al guardar en Google Sheets. Verifique su conexión e intente nuevamente.', 'error');
         
         // Restaurar botón
         setTimeout(() => {
@@ -1241,4 +574,925 @@ function showStatus(message, type) {
 function hideStatus() {
     const status = document.getElementById('status');
     status.style.display = 'none';
+}
+
+function isGoogleChrome() {
+    const isChromium = window.chrome;
+    const winNav = window.navigator;
+    const vendorName = winNav.vendor;
+    const isOpera = typeof window.opr !== "undefined";
+    const isIEedge = winNav.userAgent.indexOf("Edg") > -1;
+    const isIOSChrome = winNav.userAgent.match("CriOS");
+
+    if (isIOSChrome) {
+        return true;
+    } else if (
+        isChromium !== null &&
+        typeof isChromium !== "undefined" &&
+        vendorName === "Google Inc." &&
+        isOpera === false &&
+        isIEedge === false
+    ) {
+        return true;
+    } else { 
+        return false;
+    }
+}// Variables globales
+let currentLocation = null;
+let userEmail = null;
+let isAuthenticated = false;
+let locationValid = false;
+let locationAttempts = 0;
+let currentUser = null;
+let selectedFiles = [];
+let authenticationPurpose = 'login'; // 'login' | 'revoke'
+let privacyConsent = false;
+
+const MAX_LOCATION_ATTEMPTS = 3;
+const REQUIRED_ACCURACY = 50; // metros
+const MAX_FILES = 5;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const PRIVACY_VERSION = '1.0';
+
+// IMPORTANTE: Reemplaza con tu Google Client ID
+const GOOGLE_CLIENT_ID = '799841037062-kal4vump3frc2f8d33bnp4clc9amdnng.apps.googleusercontent.com';
+
+// Ubicaciones conocidas de la UAS
+const ubicacionesUAS = [
+    {
+        name: "Facultad de Psicología UAS",
+        description: "Campus de la Universidad Autónoma de Sinaloa - Facultad de Psicología",
+        lat: 24.7993,
+        lng: -107.3950,
+        radius: 100
+    },
+    {
+        name: "CESPSIC - Centro de Servicios Psicológicos",
+        description: "Centro de atención psicológica de la UAS",
+        lat: 24.7995,
+        lng: -107.3948,
+        radius: 50
+    },
+    {
+        name: "Universidad Autónoma de Sinaloa - Campus Central",
+        description: "Campus principal de la UAS",
+        lat: 24.7990,
+        lng: -107.3950,
+        radius: 200
+    }
+];
+
+// Inicializar formulario
+document.addEventListener('DOMContentLoaded', function() {
+    initializeForm();
+    setupEventListeners();
+    loadGoogleSignInScript();
+    updateCurrentTime();
+    checkPrivacyConsent();
+    
+    // Actualizar hora cada segundo
+    setInterval(updateCurrentTime, 1000);
+});
+
+// ========== PRIVACY MANAGEMENT FUNCTIONS ==========
+
+function checkPrivacyConsent() {
+    try {
+        const storedConsent = localStorage.getItem('cespsic_privacy_accepted');
+        
+        if (storedConsent) {
+            const consentData = JSON.parse(storedConsent);
+            
+            // Verificar versión del aviso
+            if (consentData.version === PRIVACY_VERSION && consentData.accepted) {
+                privacyConsent = true;
+                updatePrivacyUI();
+                enableAuthentication();
+                console.log('Permisos de privacidad encontrados y válidos');
+                return;
+            } else {
+                // Versión desactualizada, limpiar
+                localStorage.removeItem('cespsic_privacy_accepted');
+            }
+        }
+        
+        // No hay consentimiento válido
+        privacyConsent = false;
+        updatePrivacyUI();
+        disableAuthentication();
+        console.log('Sin permisos de privacidad válidos');
+        
+    } catch (error) {
+        console.error('Error verificando consentimiento:', error);
+        privacyConsent = false;
+        updatePrivacyUI();
+        disableAuthentication();
+    }
+}
+
+function updatePrivacyUI() {
+    const revokeSection = document.getElementById('revoke-section');
+    const signinBtn = document.getElementById('main-signin-btn');
+    const signinBtnText = document.getElementById('signin-btn-text');
+    
+    if (privacyConsent) {
+        revokeSection.style.display = 'block';
+        signinBtn.disabled = false;
+        signinBtnText.textContent = 'Iniciar Sesión con Google';
+        signinBtn.style.background = '#4285f4';
+    } else {
+        revokeSection.style.display = 'none';
+        signinBtn.disabled = true;
+        signinBtnText.textContent = 'Debe aceptar el aviso de privacidad';
+        signinBtn.style.background = '#9e9e9e';
+    }
+}
+
+function enableAuthentication() {
+    const signinBtn = document.getElementById('main-signin-btn');
+    signinBtn.disabled = false;
+}
+
+function disableAuthentication() {
+    const signinBtn = document.getElementById('main-signin-btn');
+    signinBtn.disabled = true;
+}
+
+function requestAuthentication() {
+    if (!privacyConsent) {
+        showPrivacyModal();
+    } else {
+        authenticationPurpose = 'login';
+        proceedWithGoogleSignIn();
+    }
+}
+
+function showPrivacyModal() {
+    const modal = document.getElementById('privacy-modal');
+    modal.style.display = 'flex';
+    
+    // Manejar escape key
+    document.addEventListener('keydown', handlePrivacyModalEscape);
+}
+
+function hidePrivacyModal() {
+    const modal = document.getElementById('privacy-modal');
+    modal.style.display = 'none';
+    document.removeEventListener('keydown', handlePrivacyModalEscape);
+}
+
+function handlePrivacyModalEscape(e) {
+    if (e.key === 'Escape') {
+        rejectPrivacy();
+    }
+}
+
+function acceptPrivacy() {
+    try {
+        // Guardar consentimiento en localStorage
+        const consentData = {
+            accepted: true,
+            timestamp: new Date().toISOString(),
+            version: PRIVACY_VERSION,
+            userAgent: navigator.userAgent
+        };
+        
+        localStorage.setItem('cespsic_privacy_accepted', JSON.stringify(consentData));
+        
+        privacyConsent = true;
+        updatePrivacyUI();
+        hidePrivacyModal();
+        
+        // Proceder con autenticación
+        authenticationPurpose = 'login';
+        proceedWithGoogleSignIn();
+        
+        console.log('Aviso de privacidad aceptado');
+        
+    } catch (error) {
+        console.error('Error guardando consentimiento:', error);
+        showStatus('Error al guardar consentimiento. Intente nuevamente.', 'error');
+    }
+}
+
+function rejectPrivacy() {
+    hidePrivacyModal();
+    showStatus('Debe aceptar el aviso de privacidad para usar la aplicación.', 'error');
+    setTimeout(() => hideStatus(), 5000);
+}
+
+function requestRevocation() {
+    showRevokeModal();
+}
+
+function showRevokeModal() {
+    const modal = document.getElementById('revoke-modal');
+    modal.style.display = 'flex';
+    
+    // Manejar escape key
+    document.addEventListener('keydown', handleRevokeModalEscape);
+}
+
+function hideRevokeModal() {
+    const modal = document.getElementById('revoke-modal');
+    modal.style.display = 'none';
+    document.removeEventListener('keydown', handleRevokeModalEscape);
+}
+
+function handleRevokeModalEscape(e) {
+    if (e.key === 'Escape') {
+        cancelRevocation();
+    }
+}
+
+function cancelRevocation() {
+    hideRevokeModal();
+}
+
+function authenticateToRevoke() {
+    hideRevokeModal();
+    authenticationPurpose = 'revoke';
+    proceedWithGoogleSignIn();
+}
+
+async function revokePrivacyConsent() {
+    try {
+        // Registrar revocación en backend
+        await recordPrivacyAction('PRIVACY_REVOKED');
+        
+        // Eliminar consentimiento local
+        localStorage.removeItem('cespsic_privacy_accepted');
+        
+        // Actualizar estados
+        privacyConsent = false;
+        isAuthenticated = false;
+        currentUser = null;
+        userEmail = null;
+        locationValid = false;
+        currentLocation = null;
+        selectedFiles = [];
+        
+        // Actualizar UI
+        updatePrivacyUI();
+        updateAuthenticationUI();
+        disableForm();
+        resetLocationFields();
+        resetEvidenciasSection();
+        
+        showStatus('Permisos de privacidad revocados exitosamente. Se ha cerrado su sesión.', 'success');
+        
+        setTimeout(() => {
+            hideStatus();
+            // Reinicializar Google Sign-In
+            initializeGoogleSignIn();
+        }, 3000);
+        
+        console.log('Consentimiento de privacidad revocado');
+        
+    } catch (error) {
+        console.error('Error revocando consentimiento:', error);
+        showStatus('Error al revocar permisos. Intente nuevamente.', 'error');
+    }
+}
+
+async function recordPrivacyAction(action) {
+    if (!currentUser) {
+        throw new Error('Usuario no autenticado para registrar acción de privacidad');
+    }
+    
+    try {
+        const privacyData = {
+            action: 'record_privacy_action',
+            timestamp: new Date().toISOString(),
+            email: currentUser.email,
+            google_user_id: currentUser.id,
+            authenticated_user_name: currentUser.name,
+            privacy_action: action,
+            privacy_version: PRIVACY_VERSION,
+            device_info: navigator.userAgent,
+            authentication_purpose: authenticationPurpose
+        };
+        
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdzQgYOOawGZc-ZDYhHrBqhfLLYrczeTS7XLdhZ1gnQq8SGAhU7t_dOYuCRJTAwZ-4/exec';
+        
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(privacyData)
+        });
+        
+        console.log('Acción de privacidad registrada:', action);
+        
+    } catch (error) {
+        console.error('Error registrando acción de privacidad:', error);
+        throw error;
+    }
+}
+
+// ========== GOOGLE SIGN-IN FUNCTIONS (MODIFICADAS) ==========
+
+function initializeForm() {
+    // Establecer fecha actual (solo lectura)
+    const today = new Date();
+    document.getElementById('fecha').value = today.toISOString().split('T')[0];
+    
+    // Establecer hora actual (solo lectura)
+    updateCurrentTime();
+    
+    // Establecer timestamp
+    document.getElementById('timestamp').value = new Date().toISOString();
+}
+
+function updateCurrentTime() {
+    const now = new Date();
+    const timeString = now.toTimeString().slice(0, 5); // HH:MM formato
+    document.getElementById('hora').value = timeString;
+}
+
+function loadGoogleSignInScript() {
+    // El script ya se carga en el HTML, solo inicializamos cuando esté listo
+    if (typeof google !== 'undefined' && google.accounts) {
+        initializeGoogleSignIn();
+    } else {
+        // Esperar a que se cargue el script
+        setTimeout(loadGoogleSignInScript, 100);
+    }
+}
+
+function initializeGoogleSignIn() {
+    try {
+        google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: true
+        });
+
+        console.log('Google Sign-In inicializado correctamente');
+
+    } catch (error) {
+        console.error('Error inicializando Google Sign-In:', error);
+        showStatus('Error cargando sistema de autenticación. Verifique su conexión.', 'error');
+    }
+}
+
+function proceedWithGoogleSignIn() {
+    try {
+        google.accounts.id.prompt((notification) => {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                console.log('Prompt de Google no se mostró:', notification.getNotDisplayedReason());
+                
+                if (authenticationPurpose === 'revoke') {
+                    showStatus('No se pudo mostrar el diálogo de autenticación para revocación.', 'error');
+                } else {
+                    showStatus('No se pudo mostrar el diálogo de Google. Intente recargar la página.', 'error');
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error en sign-in:', error);
+        showStatus('Error al intentar iniciar sesión con Google.', 'error');
+    }
+}
+
+async function handleCredentialResponse(response) {
+    try {
+        // Decodificar el JWT token para obtener la información del usuario
+        const userInfo = parseJwt(response.credential);
+        
+        currentUser = {
+            id: userInfo.sub,
+            email: userInfo.email,
+            name: userInfo.name,
+            picture: userInfo.picture,
+            email_verified: userInfo.email_verified
+        };
+
+        // Verificar que el email esté verificado
+        if (!currentUser.email_verified) {
+            showStatus('Su cuenta de Gmail no está verificada. Use una cuenta verificada.', 'error');
+            return;
+        }
+
+        // Manejar según el propósito de autenticación
+        if (authenticationPurpose === 'revoke') {
+            await handleRevocationFlow();
+        } else {
+            await handleLoginFlow();
+        }
+
+    } catch (error) {
+        console.error('Error procesando credenciales:', error);
+        showStatus('Error en la autenticación. Intente nuevamente.', 'error');
+    }
+}
+
+async function handleLoginFlow() {
+    try {
+        // Registrar aceptación de privacidad en backend
+        await recordPrivacyAction('PRIVACY_ACCEPTED');
+        
+        // Actualizar estado de autenticación
+        isAuthenticated = true;
+        userEmail = currentUser.email;
+        document.getElementById('email').value = userEmail;
+        document.getElementById('google_user_id').value = currentUser.id;
+
+        // Actualizar interfaz
+        updateAuthenticationUI();
+        enableForm();
+        
+        // Iniciar proceso de ubicación
+        getCurrentLocation();
+
+        showStatus(`¡Bienvenido ${currentUser.name}! Autenticación exitosa.`, 'success');
+        setTimeout(() => hideStatus(), 3000);
+
+    } catch (error) {
+        console.error('Error en flujo de login:', error);
+        showStatus('Error registrando la autenticación. Intente nuevamente.', 'error');
+    }
+}
+
+async function handleRevocationFlow() {
+    try {
+        // Ejecutar revocación
+        await revokePrivacyConsent();
+        
+    } catch (error) {
+        console.error('Error en flujo de revocación:', error);
+        showStatus('Error durante la revocación. Intente nuevamente.', 'error');
+    }
+}
+
+function parseJwt(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (error) {
+        console.error('Error parsing JWT:', error);
+        return null;
+    }
+}
+
+function updateAuthenticationUI() {
+    const authSection = document.getElementById('auth-section');
+    const authTitle = document.getElementById('auth-title');
+    const userInfo = document.getElementById('user-info');
+    const signinContainer = document.getElementById('signin-button-container');
+
+    if (isAuthenticated && currentUser) {
+        // Actualizar sección de autenticación
+        authSection.classList.add('authenticated');
+        authTitle.textContent = '✅ Autenticación Exitosa';
+        authTitle.classList.add('authenticated');
+
+        // Mostrar información del usuario
+        document.getElementById('user-avatar').src = currentUser.picture;
+        document.getElementById('user-email').textContent = currentUser.email;
+        document.getElementById('user-name').textContent = currentUser.name;
+        userInfo.classList.add('show');
+
+        // Ocultar botón de inicio de sesión
+        signinContainer.style.display = 'none';
+
+    } else {
+        // Resetear al estado no autenticado
+        authSection.classList.remove('authenticated');
+        authTitle.textContent = '🔒 Autenticación Requerida';
+        authTitle.classList.remove('authenticated');
+        userInfo.classList.remove('show');
+        signinContainer.style.display = 'block';
+    }
+}
+
+function enableForm() {
+    const formContainer = document.getElementById('form-container');
+    formContainer.classList.add('authenticated');
+}
+
+function disableForm() {
+    const formContainer = document.getElementById('form-container');
+    formContainer.classList.remove('authenticated');
+    locationValid = false;
+    updateSubmitButton();
+}
+
+function signOut() {
+    try {
+        // Cerrar sesión de Google
+        google.accounts.id.disableAutoSelect();
+        
+        // Resetear variables (manteniendo privacyConsent)
+        isAuthenticated = false;
+        currentUser = null;
+        userEmail = null;
+        locationValid = false;
+        currentLocation = null;
+        locationAttempts = 0;
+        selectedFiles = [];
+
+        // Limpiar campos ocultos
+        document.getElementById('email').value = '';
+        document.getElementById('google_user_id').value = '';
+        document.getElementById('latitude').value = '';
+        document.getElementById('longitude').value = '';
+        document.getElementById('location_status').value = '';
+
+        // Actualizar interfaz
+        updateAuthenticationUI();
+        disableForm();
+        resetLocationFields();
+        resetEvidenciasSection();
+
+        showStatus('Sesión cerrada correctamente.', 'success');
+        setTimeout(() => hideStatus(), 3000);
+
+        // Reinicializar Google Sign-In
+        setTimeout(() => {
+            initializeGoogleSignIn();
+        }, 1000);
+
+    } catch (error) {
+        console.error('Error cerrando sesión:', error);
+        showStatus('Error al cerrar sesión.', 'error');
+    }
+}
+
+// ========== EVIDENCIAS FUNCTIONS ==========
+
+function setupEvidenciasHandlers() {
+    const evidenciasInput = document.getElementById('evidencias');
+    
+    evidenciasInput.addEventListener('change', function(e) {
+        handleFileSelection(e.target.files);
+    });
+    
+    // Drag and drop functionality
+    const evidenciasContainer = document.querySelector('.evidencias-container');
+    
+    evidenciasContainer.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        evidenciasContainer.style.borderColor = '#4854c7';
+        evidenciasContainer.style.background = 'linear-gradient(135deg, #e8ebff 0%, #d6dbff 100%)';
+    });
+    
+    evidenciasContainer.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        evidenciasContainer.style.borderColor = '#667eea';
+        evidenciasContainer.style.background = 'linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%)';
+    });
+    
+    evidenciasContainer.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        evidenciasContainer.style.borderColor = '#667eea';
+        evidenciasContainer.style.background = 'linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%)';
+        
+        const files = e.dataTransfer.files;
+        handleFileSelection(files);
+    });
+}
+
+function handleFileSelection(files) {
+    const fileArray = Array.from(files);
+    const validFiles = [];
+    const errors = [];
+    
+    // Validar cada archivo
+    fileArray.forEach(file => {
+        // Verificar tipo de archivo
+        if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+            errors.push(`${file.name}: Tipo de archivo no válido. Solo se permiten JPG, PNG y WEBP.`);
+            return;
+        }
+        
+        // Verificar tamaño de archivo
+        if (file.size > MAX_FILE_SIZE) {
+            errors.push(`${file.name}: Archivo demasiado grande. Máximo ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
+            return;
+        }
+        
+        validFiles.push(file);
+    });
+    
+    // Verificar límite total de archivos
+    if (selectedFiles.length + validFiles.length > MAX_FILES) {
+        errors.push(`Solo puede subir máximo ${MAX_FILES} imágenes. Actualmente tiene ${selectedFiles.length} seleccionadas.`);
+        showEvidenciasStatus(errors.join('<br>'), 'error');
+        return;
+    }
+    
+    // Mostrar errores si los hay
+    if (errors.length > 0) {
+        showEvidenciasStatus(errors.join('<br>'), 'error');
+    }
+    
+    // Agregar archivos válidos
+    validFiles.forEach(file => {
+        selectedFiles.push(file);
+        addFilePreview(file, selectedFiles.length - 1);
+    });
+    
+    // Actualizar input
+    updateFileInput();
+    
+    // Mostrar estado exitoso si se agregaron archivos
+    if (validFiles.length > 0) {
+        showEvidenciasStatus(`${validFiles.length} imagen(es) agregada(s) correctamente. Total: ${selectedFiles.length}/${MAX_FILES}`, 'success');
+    }
+}
+
+function addFilePreview(file, index) {
+    const preview = document.getElementById('evidencias-preview');
+    const fileItem = document.createElement('div');
+    fileItem.className = 'evidencia-item';
+    fileItem.dataset.index = index;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        fileItem.innerHTML = `
+            <img src="${e.target.result}" alt="Evidencia ${index + 1}">
+            <div class="evidencia-info">
+                ${file.name.length > 15 ? file.name.substring(0, 15) + '...' : file.name}<br>
+                <small>${(file.size / 1024).toFixed(1)} KB</small>
+            </div>
+            <button type="button" class="evidencia-remove" onclick="removeFile(${index})">×</button>
+        `;
+    };
+    reader.readAsDataURL(file);
+    
+    preview.appendChild(fileItem);
+}
+
+function removeFile(index) {
+    // Remover archivo del array
+    selectedFiles.splice(index, 1);
+    
+    // Actualizar vista previa
+    updatePreview();
+    
+    // Actualizar input
+    updateFileInput();
+    
+    showEvidenciasStatus(`Imagen removida. Total: ${selectedFiles.length}/${MAX_FILES}`, 'success');
+}
+
+function updatePreview() {
+    const preview = document.getElementById('evidencias-preview');
+    preview.innerHTML = '';
+    
+    selectedFiles.forEach((file, index) => {
+        addFilePreview(file, index);
+    });
+}
+
+function updateFileInput() {
+    const input = document.getElementById('evidencias');
+    const dt = new DataTransfer();
+    
+    selectedFiles.forEach(file => {
+        dt.items.add(file);
+    });
+    
+    input.files = dt.files;
+}
+
+function showEvidenciasStatus(message, type) {
+    const status = document.getElementById('evidencias-status');
+    status.innerHTML = message;
+    status.className = `evidencias-status ${type}`;
+    
+    // Auto-hide después de 5 segundos para mensajes de éxito
+    if (type === 'success') {
+        setTimeout(() => {
+            status.style.display = 'none';
+        }, 5000);
+    }
+}
+
+function resetEvidenciasSection() {
+    selectedFiles = [];
+    document.getElementById('evidencias').value = '';
+    document.getElementById('evidencias-preview').innerHTML = '';
+    document.getElementById('evidencias-status').style.display = 'none';
+}
+
+// ========== LOCATION FUNCTIONS ==========
+
+function setupEventListeners() {
+    // Configurar manejadores de evidencias
+    setupEvidenciasHandlers();
+    
+    // Mostrar/ocultar sección de salida y evidencias
+    document.getElementById('tipo_registro').addEventListener('change', function() {
+        const salidaSection = document.getElementById('salida_section');
+        const evidenciasSection = document.getElementById('evidencias_section');
+        const permisoSection = document.getElementById('permiso_detalle_section');
+        const otroSection = document.getElementById('otro_detalle_section');
+        const permisoTextarea = document.getElementById('permiso_detalle');
+        const otroTextarea = document.getElementById('otro_detalle');
+        
+        // Ocultar todas las secciones primero
+        salidaSection.classList.remove('show');
+        evidenciasSection.style.display = 'none';
+        permisoSection.classList.remove('show');
+        otroSection.classList.remove('show');
+        permisoTextarea.required = false;
+        otroTextarea.required = false;
+        permisoTextarea.value = '';
+        otroTextarea.value = '';
+        
+        // Resetear evidencias cuando no es salida
+        if (this.value !== 'salida') {
+            resetEvidenciasSection();
+        }
+        
+        // Mostrar la sección correspondiente
+        if (this.value === 'salida') {
+            salidaSection.classList.add('show');
+            evidenciasSection.style.display = 'block';
+        } else if (this.value === 'permiso') {
+            permisoSection.classList.add('show');
+            permisoTextarea.required = true;
+        } else if (this.value === 'otro') {
+            otroSection.classList.add('show');
+            otroTextarea.required = true;
+        }
+    });
+
+    // Mostrar/ocultar grupos de edad según intervenciones
+    document.getElementById('intervenciones_psicologicas').addEventListener('input', function() {
+        const gruposSection = document.getElementById('grupos_edad_section');
+        if (parseInt(this.value) > 0) {
+            gruposSection.classList.add('show');
+        } else {
+            gruposSection.classList.remove('show');
+        }
+    });
+
+    // Campos condicionales para actividades varias
+    document.getElementById('actividades_varias').addEventListener('change', function() {
+        const detalle = document.getElementById('actividades_varias_detalle');
+        const textarea = document.getElementById('actividades_varias_texto');
+        if (this.checked) {
+            detalle.classList.add('show');
+            textarea.required = true;
+        } else {
+            detalle.classList.remove('show');
+            textarea.required = false;
+            textarea.value = '';
+        }
+    });
+
+    // Campos condicionales para pruebas psicológicas
+    document.getElementById('pruebas_psicologicas').addEventListener('change', function() {
+        const detalle = document.getElementById('pruebas_psicologicas_detalle');
+        const textarea = document.getElementById('pruebas_psicologicas_texto');
+        if (this.checked) {
+            detalle.classList.add('show');
+            textarea.required = true;
+        } else {
+            detalle.classList.remove('show');
+            textarea.required = false;
+            textarea.value = '';
+        }
+    });
+
+    // Botón de reintentar ubicación
+    document.getElementById('retry_location_btn').addEventListener('click', function() {
+        if (!isAuthenticated) {
+            showStatus('Debe autenticarse primero antes de solicitar ubicación.', 'error');
+            return;
+        }
+        locationAttempts = 0;
+        getCurrentLocation();
+    });
+
+    // Manejo del formulario
+    document.getElementById('attendanceForm').addEventListener('submit', handleSubmit);
+}
+
+function getCurrentLocation() {
+    if (!isAuthenticated) {
+        updateLocationStatus('error', 'Autenticación requerida', 'Complete la autenticación para obtener ubicación GPS');
+        document.getElementById('ubicacion_detectada').value = 'Esperando autenticación...';
+        document.getElementById('direccion_completa').value = 'Esperando autenticación...';
+        document.getElementById('precision_gps').value = 'Esperando autenticación...';
+        document.getElementById('location_status').value = 'Autenticación requerida';
+        return;
+    }
+
+    if (!navigator.geolocation) {
+        updateLocationStatus('error', 'Geolocalización no soportada', 'Su navegador no soporta geolocalización');
+        document.getElementById('ubicacion_detectada').value = 'Navegador no compatible';
+        document.getElementById('direccion_completa').value = 'No disponible';
+        document.getElementById('precision_gps').value = 'Sin soporte';
+        document.getElementById('location_status').value = 'Geolocalización no soportada';
+        return;
+    }
+
+    locationAttempts++;
+    updateLocationStatus('loading', `Obteniendo ubicación GPS... (Intento ${locationAttempts}/${MAX_LOCATION_ATTEMPTS})`, '');
+
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0
+    };
+    
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            currentLocation = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy
+            };
+            
+            document.getElementById('latitude').value = currentLocation.latitude;
+            document.getElementById('longitude').value = currentLocation.longitude;
+            
+            // Validar precisión
+            if (currentLocation.accuracy <= REQUIRED_ACCURACY) {
+                locationValid = true;
+                document.getElementById('location_status').value = 'success';
+                updateLocationStatus('success', 'Ubicación obtenida correctamente', 
+                    `Precisión: ${Math.round(currentLocation.accuracy)} metros`);
+                updateSubmitButton();
+                
+                // Actualizar campos de ubicación
+                updateLocationFields(currentLocation);
+            } else {
+                locationValid = false;
+                document.getElementById('location_status').value = `error: Precisión insuficiente (${Math.round(currentLocation.accuracy)}m)`;
+                updateLocationStatus('warning', 'Precisión GPS insuficiente', 
+                    `Se requiere precisión de ${REQUIRED_ACCURACY}m o menos. Actual: ${Math.round(currentLocation.accuracy)}m`);
+                
+                if (locationAttempts < MAX_LOCATION_ATTEMPTS) {
+                    setTimeout(() => {
+                        updateLocationStatus('loading', 'Reintentando obtener mejor precisión...', '');
+                        getCurrentLocation();
+                    }, 2000);
+                } else {
+                    updateLocationStatus('error', 'No se pudo obtener la precisión requerida', 
+                        `Después de ${MAX_LOCATION_ATTEMPTS} intentos. Muévase a un área con mejor señal GPS.`);
+                    document.getElementById('retry_location_btn').style.display = 'block';
+                }
+            }
+        },
+        function(error) {
+            locationValid = false;
+            console.error('Error obteniendo ubicación:', error);
+            let errorMessage = '';
+            let errorDescription = '';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = 'Permisos de ubicación denegados';
+                    errorDescription = 'Por favor, permita el acceso a la ubicación y recargue la página';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = 'Ubicación no disponible';
+                    errorDescription = 'No se pudo determinar su ubicación. Verifique su conexión GPS';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = 'Tiempo de espera agotado';
+                    errorDescription = 'La solicitud de ubicación tardó demasiado. Intente nuevamente';
+                    break;
+                default:
+                    errorMessage = 'Error desconocido de geolocalización';
+                    errorDescription = 'Error inesperado al obtener la ubicación';
+            }
+            
+            document.getElementById('location_status').value = 'error: ' + errorMessage;
+            updateLocationStatus('error', errorMessage, errorDescription);
+            
+            // Actualizar campos con error
+            document.getElementById('ubicacion_detectada').value = 'Error: ' + errorMessage;
+            document.getElementById('direccion_completa').value = 'No disponible';
+            document.getElementById('precision_gps').value = 'Sin datos';
+            document.getElementById('ubicacion_detectada').className = 'location-field error';
+            document.getElementById('direccion_completa').className = 'location-field error';
+            document.getElementById('precision_gps').className = 'location-field error';
+            
+            if (locationAttempts < MAX_LOCATION_ATTEMPTS && error.code !== error.PERMISSION_DENIED) {
+                setTimeout(() => {
+                    getCurrentLocation();
+                }, 3000);
+            } else {
+                document.getElementById('retry_location_btn').style.display = 'block';
+            }
+        },
+        options
+    );
 }
