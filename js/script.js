@@ -180,61 +180,56 @@ function resetLocationFields() {
 async function handleSubmit(e) {
     e.preventDefault();
     
-    // Verificar autenticación
+    // Verificaciones iniciales
     if (!isAuthenticated || !currentUser) {
         showStatus('❌ Debe autenticarse con Google antes de registrar la asistencia.', 'error');
         return;
     }
     
-    // Validar que se tenga ubicación válida antes de continuar
     if (!locationValid || !currentLocation) {
-        showStatus('❌ No se puede registrar la asistencia sin una ubicación GPS válida con precisión de 50 metros o menos.', 'error');
+        showStatus('❌ No se puede registrar la asistencia sin una ubicación GPS válida.', 'error');
         return;
     }
     
-    // Validar precisión una vez más
     if (currentLocation.accuracy > REQUIRED_ACCURACY) {
-        showStatus(`❌ La precisión GPS actual (${Math.round(currentLocation.accuracy)}m) supera el límite permitido de ${REQUIRED_ACCURACY}m. Intente obtener una mejor señal GPS.`, 'error');
+        showStatus(`❌ La precisión GPS actual (${Math.round(currentLocation.accuracy)}m) supera el límite permitido de ${REQUIRED_ACCURACY}m.`, 'error');
         return;
     }
     
-    // Actualizar timestamp al momento del envío
-    document.getElementById('timestamp').value = new Date().toISOString();
-    
-    // Validar campos requeridos condicionalmente
+    // Validar campos condicionales
     if (!validateConditionalFields()) {
         return;
     }
     
-    // Mostrar cargando
+    // Mostrar estado de carga
     showStatus('Guardando asistencia... ⏳', 'success');
     const submitBtn = document.querySelector('.submit-btn');
+    const originalText = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Guardando...';
     
     try {
-        // Procesar evidencias si las hay
+        // Procesar evidencias primero
         let evidenciasUrls = [];
         if (selectedFiles.length > 0) {
             showStatus('Subiendo evidencias... 📤', 'success');
             evidenciasUrls = await uploadEvidencias();
             
-            // Verificar si todas las evidencias fallaron
+            // Verificar si hay evidencias exitosas
             const successfulUploads = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS');
             if (selectedFiles.length > 0 && successfulUploads.length === 0) {
                 throw new Error('No se pudo subir ninguna evidencia. Verifique su conexión e intente nuevamente.');
             }
         }
         
-        // MÉTODO CORREGIDO PARA PROCESAR DATOS DEL FORMULARIO
+        // Preparar datos del formulario
         const formData = new FormData(e.target);
         const data = {};
         
-        // Procesar campos normales del formulario
+        // Procesar campos del formulario
         for (let [key, value] of formData.entries()) {
-            if (key === 'evidencias') continue; // Skip evidencias input
+            if (key === 'evidencias') continue;
             
-            // Manejar arrays (como actividades[])
             if (key.endsWith('[]')) {
                 const cleanKey = key.replace('[]', '');
                 if (!data[cleanKey]) {
@@ -242,7 +237,6 @@ async function handleSubmit(e) {
                 }
                 data[cleanKey].push(value);
             } else {
-                // Para campos normales, si ya existe, convertir a array
                 if (data[key]) {
                     if (Array.isArray(data[key])) {
                         data[key].push(value);
@@ -255,17 +249,12 @@ async function handleSubmit(e) {
             }
         }
         
-        // ASEGURAR QUE LOS CAMPOS CRÍTICOS ESTÁN INCLUIDOS
-        // Forzar modalidad desde el elemento del DOM
-        const modalidadElement = document.getElementById('modalidad');
-        data.modalidad = modalidadElement.value;
-        
-        // Agregar información de evidencias MEJORADA
+        // Agregar información de evidencias
         data.evidencias_urls = evidenciasUrls;
         data.total_evidencias = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS').length;
         data.evidencias_failed = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED').length;
         
-        // Crear resumen de evidencias para el Google Sheet
+        // Crear resumen de evidencias para el sheet
         const evidenciasResumen = evidenciasUrls
             .filter(e => e.uploadStatus === 'SUCCESS')
             .map(e => `${e.fileName}: ${e.url}`)
@@ -273,56 +262,43 @@ async function handleSubmit(e) {
         
         data.evidencias_resumen = evidenciasResumen;
         
-        // Forzar la inclusión de los campos de ubicación
+        // Forzar campos críticos
+        data.modalidad = document.getElementById('modalidad').value;
         data.ubicacion_detectada = document.getElementById('ubicacion_detectada').value;
         data.direccion_completa = document.getElementById('direccion_completa').value;
         data.precision_gps = document.getElementById('precision_gps').value;
-        
-        // Agregar información adicional de autenticación y ubicación
         data.precision_gps_metros = Math.round(currentLocation.accuracy);
         data.location_validation = 'passed';
         data.authenticated_user_name = currentUser.name;
         data.authentication_timestamp = new Date().toISOString();
+        data.timestamp = new Date().toISOString();
         
-        // VALIDACIÓN ADICIONAL ANTES DEL ENVÍO
-        console.log('=== DATOS ANTES DEL ENVÍO ===');
-        console.log('Modalidad:', data.modalidad);
-        console.log('Total evidencias exitosas:', data.total_evidencias);
-        console.log('Evidencias fallidas:', data.evidencias_failed);
-        console.log('Resumen evidencias:', evidenciasResumen);
-        console.log('Usuario autenticado:', currentUser.email);
-        
-        // Verificar que modalidad no esté vacía
+        // Validar modalidad
         if (!data.modalidad || data.modalidad === '') {
-            showStatus('Error: El campo Modalidad es requerido y no puede estar vacío.', 'error');
-            updateSubmitButton();
-            return;
+            throw new Error('El campo Modalidad es requerido');
         }
         
-        // IMPORTANTE: Reemplaza esta URL con tu URL de Google Apps Script
+        console.log('📤 Enviando datos del formulario principal...');
+        console.log('Modalidad:', data.modalidad);
+        console.log('Evidencias exitosas:', data.total_evidencias);
+        
+        // IMPORTANTE: URL de tu Google Apps Script
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
         
-        // ENVÍO CON MANEJO DE ERRORES MEJORADO
-        const response = await fetch(GOOGLE_SCRIPT_URL, {
+        // Enviar formulario principal
+        const response = await fetchWithRetry(GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            mode: 'cors', // IMPORTANTE: Cambiar a 'cors' para poder manejar respuestas
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(data)
-        });
+        }, 3);
         
-        // Log para verificar envío
-        console.log('=== DATOS ENVIADOS ===');
-        console.log('URL:', GOOGLE_SCRIPT_URL);
-        console.log('Payload size:', JSON.stringify(data).length, 'characters');
-        
-        // Procesar respuesta
         if (response.ok) {
             const responseData = await response.json();
             
             if (responseData.success) {
-                // Crear resumen de evidencias para mostrar al usuario
+                // Éxito completo
                 const evidenciasInfo = data.total_evidencias > 0 
                     ? `\nEvidencias: ${data.total_evidencias} imagen(es) subida(s)${data.evidencias_failed > 0 ? ` (${data.evidencias_failed} errores)` : ''}`
                     : '';
@@ -333,18 +309,17 @@ async function handleSubmit(e) {
                 Ubicación: ${data.ubicacion_detectada}
                 Precisión GPS: ${data.precision_gps}${evidenciasInfo}`, 'success');
                 
-                // Resetear formulario después de 4 segundos
+                // Auto-reset después de 4 segundos
                 setTimeout(() => {
                     if (confirm('¿Desea registrar otra asistencia? Presione OK para continuar o Cancelar para cerrar sesión.')) {
-                        // Continuar con el mismo usuario
                         resetFormOnly();
                         getCurrentLocation();
                     } else {
-                        // Cerrar sesión y resetear todo
                         signOut();
                     }
                     hideStatus();
                 }, 4000);
+                
             } else {
                 throw new Error(responseData.message || 'Error desconocido del servidor');
             }
@@ -354,23 +329,25 @@ async function handleSubmit(e) {
         }
         
     } catch (error) {
-        console.error('Error al enviar:', error);
+        console.error('❌ Error en envío:', error);
         
-        // Mensaje de error más específico
         let errorMessage = 'Error al guardar en Google Sheets. ';
         if (error.message.includes('CORS')) {
             errorMessage += 'Error de configuración CORS. Contacte al administrador.';
-        } else if (error.message.includes('Failed to fetch')) {
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
             errorMessage += 'Verifique su conexión a internet e intente nuevamente.';
+        } else if (error.message.includes('evidencia')) {
+            errorMessage = error.message; // Usar mensaje específico de evidencias
         } else {
             errorMessage += error.message;
         }
         
         showStatus(errorMessage, 'error');
         
-        // Restaurar botón
+        // Restaurar botón después de 5 segundos
         setTimeout(() => {
-            updateSubmitButton();
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
             hideStatus();
         }, 5000);
     }
@@ -388,7 +365,30 @@ function validateEvidenciasUrls(evidenciasUrls) {
     console.log(`URLs validadas: ${validUrls.length}/${evidenciasUrls.length}`);
     return validUrls;
 }
-
+async function testConnectivity() {
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    
+    try {
+        console.log('🔍 Probando conectividad con Google Apps Script...');
+        
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'GET'
+        });
+        
+        if (response.ok) {
+            const text = await response.text();
+            console.log('✅ Conectividad exitosa');
+            console.log('Respuesta del servidor:', text);
+            return { success: true, response: text };
+        } else {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error de conectividad:', error);
+        return { success: false, error: error.message };
+    }
+}
 // Función para mostrar información detallada de evidencias en la UI
 function showEvidenciasDetails(evidenciasUrls) {
     if (evidenciasUrls.length === 0) return;
@@ -468,6 +468,9 @@ async function uploadEvidencias() {
     
     showEvidenciasStatus('Preparando archivos para subir...', 'loading');
     
+    // IMPORTANTE: URL de tu Google Apps Script (actualizar si es necesario)
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    
     for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         const fileName = generateEvidenciaFileName(tipoRegistro, i);
@@ -491,49 +494,50 @@ async function uploadEvidencias() {
                 timestamp: new Date().toISOString()
             };
             
-            // Enviar a Google Apps Script
-            const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+            console.log(`Subiendo archivo ${i + 1}:`, fullFileName);
             
-            // CAMBIO IMPORTANTE: Usar mode: 'cors' para obtener respuesta real
-            const response = await fetch(GOOGLE_SCRIPT_URL, {
+            // Realizar petición con timeout y retry
+            const response = await fetchWithRetry(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
-                mode: 'cors', // Cambiar de 'no-cors' a 'cors'
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(uploadData)
-            });
+            }, 3); // 3 intentos
             
             if (response.ok) {
                 const responseData = await response.json();
                 
                 if (responseData.success) {
-                    // Usar las URLs reales del backend
+                    // URLs reales del backend
                     evidenciasUrls.push({
                         fileName: fullFileName,
                         originalName: file.name,
-                        url: responseData.file_url,           // URL principal para reportes
-                        file_id: responseData.file_id,        // ID del archivo
-                        download_url: responseData.download_url, // URL de descarga
-                        preview_url: responseData.preview_url,   // URL de preview
-                        embed_url: responseData.embed_url,       // URL para embed
+                        url: responseData.file_url,
+                        file_id: responseData.file_id,
+                        download_url: responseData.download_url,
+                        preview_url: responseData.preview_url,
+                        embed_url: responseData.embed_url,
                         size: file.size,
-                        uploadTime: new Date().toISOString(),
+                        uploadTime: responseData.upload_timestamp,
                         uploadStatus: 'SUCCESS'
                     });
                     
-                    console.log(`Archivo ${fullFileName} subido exitosamente:`, responseData.file_url);
+                    console.log(`✅ Archivo ${fullFileName} subido exitosamente`);
+                    console.log(`URL generada: ${responseData.file_url}`);
+                    
                 } else {
                     throw new Error(responseData.message || 'Error desconocido en el servidor');
                 }
             } else {
-                throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                const errorText = await response.text();
+                throw new Error(`Error HTTP ${response.status}: ${errorText}`);
             }
             
         } catch (error) {
-            console.error(`Error subiendo archivo ${file.name}:`, error);
+            console.error(`❌ Error subiendo archivo ${file.name}:`, error);
             
-            // Agregar URL de error para tracking
+            // Agregar entrada de error
             evidenciasUrls.push({
                 fileName: fullFileName,
                 originalName: file.name,
@@ -544,19 +548,54 @@ async function uploadEvidencias() {
                 uploadStatus: 'FAILED'
             });
             
-            // Mostrar error específico pero continuar con otros archivos
+            // Mostrar error específico
             showEvidenciasStatus(`⚠️ Error subiendo ${file.name}: ${error.message}`, 'warning');
         }
         
-        // Pequeña pausa entre subidas para evitar rate limiting
+        // Pausa entre subidas para evitar rate limiting
         if (i < selectedFiles.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+    }
+    async function fetchWithRetry(url, options, maxRetries = 3) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`Intento ${attempt}/${maxRetries} para: ${url}`);
+            
+            // Agregar timeout a la petición
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
+            
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            return response;
+            
+        } catch (error) {
+            lastError = error;
+            console.error(`Intento ${attempt} falló:`, error.message);
+            
+            if (attempt < maxRetries) {
+                // Esperar antes del siguiente intento (backoff exponencial)
+                const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+                console.log(`Esperando ${delay}ms antes del siguiente intento...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
         }
     }
     
+    throw lastError;
+}
     // Mostrar resumen final
     const successCount = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS').length;
     const failCount = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED').length;
+    
+    console.log(`📊 Resumen subida: ${successCount} exitosas, ${failCount} fallidas`);
     
     if (successCount > 0) {
         showEvidenciasStatus(
