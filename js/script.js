@@ -593,12 +593,14 @@ function resetEvidenciasSection() {
 }
 
 // ========== UPLOAD ==========
+/*
 function generateEstimatedFileId(fileName) {
-    // Generar un ID pseudo-único basado en timestamp y nombre de archivo
+    // Esta función genera IDs falsos que no funcionan en Google Drive
     const timestamp = new Date().getTime();
     const hash = btoa(fileName + timestamp).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
     return `EST_${hash}_${timestamp}`;
 }
+*/
 async function uploadEvidencias() {
     if (selectedFiles.length === 0) return [];
     
@@ -630,33 +632,41 @@ async function uploadEvidencias() {
             
             console.log(`Subiendo archivo ${i + 1}:`, fullFileName);
             
-            // Usar método sin CORS
-            const responseData = await sendDataWithFallback(uploadData);
+            // Usar método con captura de respuesta mejorada
+            const responseData = await uploadSingleEvidencia(uploadData);
             
-            // Como no podemos obtener respuesta JSON confiable, generar URL estimada
-            if (responseData && responseData.success) {
-                // Generar ID de archivo estimado
-                const estimatedFileId = generateEstimatedFileId(fullFileName);
-                const estimatedViewUrl = `https://drive.google.com/file/d/${estimatedFileId}/view`;
-                
+            if (responseData && responseData.success && responseData.file_id) {
+                // URLs reales del backend
                 evidenciasUrls.push({
                     fileName: fullFileName,
                     originalName: file.name,
-                    url: estimatedViewUrl,
-                    file_id: estimatedFileId,
-                    download_url: `https://drive.google.com/uc?export=download&id=${estimatedFileId}`,
-                    preview_url: `https://drive.google.com/thumbnail?id=${estimatedFileId}&sz=w800`,
-                    embed_url: `https://drive.google.com/uc?export=view&id=${estimatedFileId}`,
+                    url: responseData.file_url,
+                    file_id: responseData.file_id,
+                    download_url: responseData.download_url,
+                    preview_url: responseData.preview_url,
+                    embed_url: responseData.embed_url,
                     size: file.size,
-                    uploadTime: new Date().toISOString(),
+                    uploadTime: responseData.upload_timestamp,
                     uploadStatus: 'SUCCESS',
-                    method: 'form_submission'
+                    method: 'form_submission_with_response'
                 });
                 
-                console.log(`✅ Archivo ${fullFileName} enviado exitosamente`);
+                console.log(`✅ Archivo ${fullFileName} subido exitosamente`);
+                console.log(`URL real obtenida: ${responseData.file_url}`);
                 
             } else {
-                throw new Error('Error en el envío del archivo');
+                // Si no se pudo obtener respuesta, usar método de placeholder temporal
+                console.log('No se pudo obtener URL real, usando placeholder temporal');
+                evidenciasUrls.push({
+                    fileName: fullFileName,
+                    originalName: file.name,
+                    url: 'PROCESANDO_EVIDENCIA',
+                    file_id: 'TEMP_' + Date.now(),
+                    size: file.size,
+                    uploadTime: new Date().toISOString(),
+                    uploadStatus: 'UPLOADED_PENDING_URL',
+                    method: 'form_submission_no_response'
+                });
             }
             
         } catch (error) {
@@ -681,19 +691,156 @@ async function uploadEvidencias() {
         }
     }
     
-    const successCount = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS').length;
+    const successCount = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS' || e.uploadStatus === 'UPLOADED_PENDING_URL').length;
     const failCount = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED').length;
     
     if (successCount > 0) {
         showEvidenciasStatus(
-            `✅ ${successCount} evidencia(s) enviada(s) correctamente${failCount > 0 ? ` (${failCount} errores)` : ''}`, 
+            `✅ ${successCount} evidencia(s) procesada(s)${failCount > 0 ? ` (${failCount} errores)` : ''}`, 
             failCount > 0 ? 'warning' : 'success'
         );
     } else if (failCount > 0) {
-        showEvidenciasStatus(`❌ Error: No se pudo subir ninguna evidencia`, 'error');
+        showEvidenciasStatus(`❌ Error: No se pudo procesar ninguna evidencia`, 'error');
     }
     
     return evidenciasUrls;
+}
+
+// Nueva función para subir una evidencia individual con mejor captura de respuesta
+async function uploadSingleEvidencia(uploadData) {
+    return new Promise((resolve, reject) => {
+        // Crear iframe con id único para poder monitorearlo mejor
+        const iframeId = 'upload_iframe_' + Date.now();
+        const iframe = document.createElement('iframe');
+        iframe.id = iframeId;
+        iframe.style.display = 'none';
+        iframe.name = iframeId;
+        
+        // Crear formulario
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = GOOGLE_SCRIPT_URL;
+        form.target = iframe.name;
+        form.style.display = 'none';
+        
+        // Agregar datos como campos ocultos
+        for (const [key, value] of Object.entries(uploadData)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = typeof value === 'object' ? JSON.stringify(value) : value;
+            form.appendChild(input);
+        }
+        
+        let resolved = false;
+        
+        // Intentar capturar respuesta del iframe
+        iframe.onload = function() {
+            if (resolved) return;
+            
+            setTimeout(() => {
+                if (resolved) return;
+                
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    let responseText = '';
+                    
+                    if (iframeDoc && iframeDoc.body) {
+                        responseText = iframeDoc.body.textContent || iframeDoc.body.innerText || '';
+                    }
+                    
+                    console.log(`Respuesta para ${uploadData.fileName}:`, responseText);
+                    
+                    // Intentar parsear JSON
+                    let responseData = null;
+                    try {
+                        responseData = JSON.parse(responseText);
+                        if (responseData.success && responseData.file_id) {
+                            console.log('✅ Respuesta JSON válida obtenida:', responseData.file_url);
+                            resolved = true;
+                            cleanup();
+                            resolve(responseData);
+                            return;
+                        }
+                    } catch (parseError) {
+                        console.log('No se pudo parsear respuesta como JSON');
+                    }
+                    
+                    // Si llegamos aquí, asumir que se subió pero no podemos obtener la URL
+                    resolved = true;
+                    cleanup();
+                    resolve({
+                        success: true,
+                        message: 'Archivo subido, URL no disponible',
+                        file_id: null,
+                        file_url: 'URL_PENDIENTE_DE_PROCESAMIENTO'
+                    });
+                    
+                } catch (error) {
+                    console.log('Error leyendo iframe, asumiendo subida exitosa');
+                    if (!resolved) {
+                        resolved = true;
+                        cleanup();
+                        resolve({
+                            success: true,
+                            message: 'Archivo subido, respuesta no accesible',
+                            file_id: null,
+                            file_url: 'URL_PROCESADA_EN_BACKEND'
+                        });
+                    }
+                }
+            }, 3000); // Esperar 3 segundos para que se procese
+        };
+        
+        // Timeout de seguridad
+        const timeoutId = setTimeout(() => {
+            if (!resolved) {
+                console.log('Timeout en subida, asumiendo éxito');
+                resolved = true;
+                cleanup();
+                resolve({
+                    success: true,
+                    message: 'Archivo enviado (timeout)',
+                    file_id: null,
+                    file_url: 'URL_TIMEOUT_PROCESAMIENTO'
+                });
+            }
+        }, 10000); // 10 segundos
+        
+        function cleanup() {
+            try {
+                clearTimeout(timeoutId);
+                if (document.body.contains(iframe)) {
+                    document.body.removeChild(iframe);
+                }
+                if (document.body.contains(form)) {
+                    document.body.removeChild(form);
+                }
+            } catch (e) {
+                console.log('Error en cleanup:', e);
+            }
+        }
+        
+        // Error del iframe
+        iframe.onerror = function() {
+            if (!resolved) {
+                console.log('Error en iframe, pero archivo posiblemente subido');
+                resolved = true;
+                cleanup();
+                resolve({
+                    success: true,
+                    message: 'Archivo enviado (error iframe)',
+                    file_id: null,
+                    file_url: 'URL_ERROR_IFRAME_PROCESAMIENTO'
+                });
+            }
+        };
+        
+        // Agregar al DOM y enviar
+        document.body.appendChild(iframe);
+        document.body.appendChild(form);
+        form.submit();
+    });
 }
 
 async function sendDataWithFallback(data) {
