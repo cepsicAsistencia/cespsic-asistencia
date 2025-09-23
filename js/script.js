@@ -2141,3 +2141,216 @@ async function runAllTests() {
         return { cors: corsResult, evidencia: { success: false, error: 'CORS failed' } };
     }
 }
+// DIAGNÓSTICO PASO A PASO PARA GOOGLE APPS SCRIPT
+
+// Paso 1: Verificar que la URL sea accesible directamente
+function testDirectAccess() {
+    const newUrl = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
+    
+    console.log('=== TEST ACCESO DIRECTO ===');
+    console.log('URL a probar:', newUrl);
+    console.log('\n📋 INSTRUCCIONES MANUALES:');
+    console.log('1. Abre una nueva pestaña del navegador');
+    console.log('2. Pega esta URL y presiona Enter:');
+    console.log(newUrl);
+    console.log('3. ¿Qué ves?');
+    console.log('   - ✅ Si ves texto que dice "CESPSIC Backend" = FUNCIONA');
+    console.log('   - ❌ Si ves error de autorización = Problema de permisos');
+    console.log('   - ❌ Si no carga = Problema de URL o implementación');
+    
+    // Intentar abrir automáticamente
+    try {
+        window.open(newUrl, '_blank');
+        console.log('\n🔗 Se abrió automáticamente en una nueva pestaña');
+    } catch (error) {
+        console.log('\n⚠️ No se pudo abrir automáticamente');
+    }
+    
+    return newUrl;
+}
+
+// Paso 2: Verificar configuración del script
+function checkScriptConfiguration() {
+    console.log('\n=== VERIFICAR CONFIGURACIÓN DEL SCRIPT ===');
+    console.log('\n📋 Ve a tu Google Apps Script y verifica:');
+    
+    console.log('\n1. FUNCIONES REQUERIDAS:');
+    console.log('   ✓ doOptions() - Para manejar preflight CORS');
+    console.log('   ✓ doPost() - Para manejar POST requests');
+    console.log('   ✓ doGet() - Para manejar GET requests');
+    
+    console.log('\n2. IMPLEMENTACIÓN:');
+    console.log('   ✓ Tipo: "Aplicación web"');
+    console.log('   ✓ Ejecutar como: "Yo (tu-email)"');
+    console.log('   ✓ Acceso: "Cualquier persona"');
+    
+    console.log('\n3. PERMISOS:');
+    console.log('   ✓ Google Drive API');
+    console.log('   ✓ Google Sheets API');
+    
+    console.log('\n4. CÓDIGO CRÍTICO A VERIFICAR:');
+    console.log('   - ¿Tienes function doOptions(e) { ... }?');
+    console.log('   - ¿Todas las respuestas incluyen headers CORS?');
+    console.log('   - ¿SHEET_ID está correctamente configurado?');
+}
+
+// Paso 3: Test alternativo sin CORS (usando JSONP)
+async function testWithoutCors() {
+    const newUrl = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
+    
+    console.log('\n=== TEST SIN CORS (JSONP) ===');
+    
+    return new Promise((resolve, reject) => {
+        // Crear script tag para evitar CORS
+        const script = document.createElement('script');
+        const callbackName = 'testCallback_' + Date.now();
+        
+        // Función de callback global
+        window[callbackName] = function(data) {
+            console.log('✅ JSONP Response recibida:', data);
+            document.head.removeChild(script);
+            delete window[callbackName];
+            resolve(data);
+        };
+        
+        // Timeout
+        setTimeout(() => {
+            if (window[callbackName]) {
+                console.log('❌ JSONP Timeout - No response');
+                document.head.removeChild(script);
+                delete window[callbackName];
+                reject(new Error('JSONP timeout'));
+            }
+        }, 10000);
+        
+        // Error handler
+        script.onerror = function() {
+            console.log('❌ JSONP Error loading script');
+            document.head.removeChild(script);
+            delete window[callbackName];
+            reject(new Error('JSONP script error'));
+        };
+        
+        script.src = `${newUrl}?callback=${callbackName}`;
+        document.head.appendChild(script);
+        
+        console.log('🔄 Enviando JSONP request...');
+    });
+}
+
+// Paso 4: Test con método POST usando form
+async function testWithFormSubmission() {
+    const newUrl = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
+    
+    console.log('\n=== TEST CON FORM SUBMISSION ===');
+    
+    // Crear formulario oculto
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = newUrl;
+    form.target = '_blank';
+    form.style.display = 'none';
+    
+    // Agregar datos de prueba
+    const testData = {
+        action: 'test_form',
+        timestamp: new Date().toISOString(),
+        user: 'test_user'
+    };
+    
+    for (const [key, value] of Object.entries(testData)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    
+    console.log('🔄 Enviando form submission...');
+    console.log('📋 Se abrirá en nueva pestaña - verifica si recibe los datos');
+    
+    form.submit();
+    
+    // Limpiar después de un momento
+    setTimeout(() => {
+        document.body.removeChild(form);
+    }, 1000);
+    
+    return 'Form submitted - check new tab for results';
+}
+
+// Función principal de diagnóstico
+async function fullDiagnosis() {
+    console.log('🚀 DIAGNÓSTICO COMPLETO DE GOOGLE APPS SCRIPT\n');
+    
+    // Paso 1: Verificar URL directamente
+    console.log('PASO 1: VERIFICACIÓN DIRECTA');
+    const url = testDirectAccess();
+    
+    // Esperar un momento para que el usuario pueda verificar
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Paso 2: Mostrar configuración requerida
+    checkScriptConfiguration();
+    
+    // Paso 3: Test alternativo JSONP
+    console.log('\nPASO 3: TEST JSONP (SIN CORS)');
+    try {
+        await testWithoutCors();
+    } catch (error) {
+        console.log('JSONP falló:', error.message);
+    }
+    
+    // Paso 4: Test con form
+    console.log('\nPASO 4: TEST FORM SUBMISSION');
+    await testWithFormSubmission();
+    
+    console.log('\n=== RESUMEN DE DIAGNÓSTICO ===');
+    console.log('1. Si URL directa funciona pero fetch() no = Problema CORS');
+    console.log('2. Si URL directa no funciona = Problema de implementación');
+    console.log('3. Si JSONP funciona = Script OK, solo falta CORS');
+    console.log('4. Si nada funciona = Revisar permisos y configuración');
+    
+    return {
+        url: url,
+        timestamp: new Date().toISOString(),
+        instructions: 'Revise los resultados de cada paso arriba'
+    };
+}
+
+// Verificador específico de Google Apps Script
+function checkGoogleAppsScriptStatus() {
+    const newUrl = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
+    
+    console.log('=== CHECKLIST GOOGLE APPS SCRIPT ===\n');
+    
+    console.log('📋 VE A TU GOOGLE APPS SCRIPT Y VERIFICA:');
+    console.log('\n✓ CÓDIGO:');
+    console.log('  1. ¿Existe function doOptions(e) {...}?');
+    console.log('  2. ¿doOptions incluye Access-Control-Allow-Origin: "*"?');
+    console.log('  3. ¿doPost incluye headers CORS en respuestas?');
+    console.log('  4. ¿SHEET_ID está configurado correctamente?');
+    
+    console.log('\n✓ IMPLEMENTACIÓN:');
+    console.log('  1. ¿Está implementado como "Aplicación web"?');
+    console.log('  2. ¿"Ejecutar como" = "Yo"?');
+    console.log('  3. ¿"Acceso" = "Cualquier persona"?');
+    console.log('  4. ¿Hiciste "Nueva implementación" después de cambiar código?');
+    
+    console.log('\n✓ PERMISOS:');
+    console.log('  1. ¿Autorizaste permisos de Drive?');
+    console.log('  2. ¿Autorizaste permisos de Sheets?');
+    
+    console.log('\n✓ URL:');
+    console.log(`  1. ¿La URL es exactamente: ${newUrl}?`);
+    console.log('  2. ¿Termina en /exec?');
+    console.log('  3. ¿Es la URL más reciente después de republicar?');
+    
+    console.log('\n🔧 PARA VERIFICAR:');
+    console.log('1. Abre el Apps Script en otra pestaña');
+    console.log('2. Ve a "Implementar" > "Gestionar implementaciones"');
+    console.log('3. Verifica la URL de la implementación activa');
+    console.log('4. Si cambió, actualiza en tu frontend');
+}
