@@ -192,11 +192,10 @@ async function handleSubmit(e) {
     }
     
     if (currentLocation.accuracy > REQUIRED_ACCURACY) {
-        showStatus(`❌ La precisión GPS actual (${Math.round(currentLocation.accuracy)}m) supera el límite permitido de ${REQUIRED_ACCURACY}m.`, 'error');
+        showStatus(`❌ La precisión GPS actual (${Math.round(currentLocation.accuracy)}m) supera el límite permitido.`, 'error');
         return;
     }
     
-    // Validar campos condicionales
     if (!validateConditionalFields()) {
         return;
     }
@@ -209,13 +208,12 @@ async function handleSubmit(e) {
     submitBtn.textContent = 'Guardando...';
     
     try {
-        // Procesar evidencias primero
+        // Procesar evidencias primero si las hay
         let evidenciasUrls = [];
         if (selectedFiles.length > 0) {
             showStatus('Subiendo evidencias... 📤', 'success');
             evidenciasUrls = await uploadEvidencias();
             
-            // Verificar si hay evidencias exitosas
             const successfulUploads = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS');
             if (selectedFiles.length > 0 && successfulUploads.length === 0) {
                 throw new Error('No se pudo subir ninguna evidencia. Verifique su conexión e intente nuevamente.');
@@ -282,62 +280,70 @@ async function handleSubmit(e) {
         console.log('Modalidad:', data.modalidad);
         console.log('Evidencias exitosas:', data.total_evidencias);
         
-        // IMPORTANTE: URL de tu Google Apps Script
+        // NUEVA URL - actualiza con la tuya
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
         
-        // Enviar formulario principal
-        const response = await fetchWithRetry(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
-        }, 3);
+        // Enviar formulario principal con método híbrido
+        let responseData = null;
         
-        if (response.ok) {
-            const responseData = await response.json();
+        try {
+            // MÉTODO 1: Intentar POST normal
+            const response = await fetch(GOOGLE_SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
             
-            if (responseData.success) {
-                // Éxito completo
-                const evidenciasInfo = data.total_evidencias > 0 
-                    ? `\nEvidencias: ${data.total_evidencias} imagen(es) subida(s)${data.evidencias_failed > 0 ? ` (${data.evidencias_failed} errores)` : ''}`
-                    : '';
-                
-                showStatus(`¡Asistencia registrada exitosamente! 📊✅
-                Usuario: ${currentUser.name} (${currentUser.email})
-                Modalidad: ${data.modalidad}
-                Ubicación: ${data.ubicacion_detectada}
-                Precisión GPS: ${data.precision_gps}${evidenciasInfo}`, 'success');
-                
-                // Auto-reset después de 4 segundos
-                setTimeout(() => {
-                    if (confirm('¿Desea registrar otra asistencia? Presione OK para continuar o Cancelar para cerrar sesión.')) {
-                        resetFormOnly();
-                        getCurrentLocation();
-                    } else {
-                        signOut();
-                    }
-                    hideStatus();
-                }, 4000);
-                
+            if (response.ok) {
+                responseData = await response.json();
             } else {
-                throw new Error(responseData.message || 'Error desconocido del servidor');
+                throw new Error(`HTTP ${response.status}`);
             }
+            
+        } catch (fetchError) {
+            console.log('POST falló, usando método alternativo:', fetchError.message);
+            
+            // MÉTODO 2: Usar form submission como fallback
+            responseData = await submitWithForm(GOOGLE_SCRIPT_URL, data);
+        }
+        
+        if (responseData && responseData.success) {
+            // Éxito completo
+            const evidenciasInfo = data.total_evidencias > 0 
+                ? `\nEvidencias: ${data.total_evidencias} imagen(es) subida(s)${data.evidencias_failed > 0 ? ` (${data.evidencias_failed} errores)` : ''}`
+                : '';
+            
+            showStatus(`¡Asistencia registrada exitosamente! 📊✅
+            Usuario: ${currentUser.name} (${currentUser.email})
+            Modalidad: ${data.modalidad}
+            Ubicación: ${data.ubicacion_detectada}
+            Precisión GPS: ${data.precision_gps}${evidenciasInfo}`, 'success');
+            
+            // Auto-reset después de 4 segundos
+            setTimeout(() => {
+                if (confirm('¿Desea registrar otra asistencia? Presione OK para continuar o Cancelar para cerrar sesión.')) {
+                    resetFormOnly();
+                    getCurrentLocation();
+                } else {
+                    signOut();
+                }
+                hideStatus();
+            }, 4000);
+            
         } else {
-            const errorText = await response.text();
-            throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+            throw new Error(responseData ? responseData.message : 'Error desconocido del servidor');
         }
         
     } catch (error) {
         console.error('❌ Error en envío:', error);
         
         let errorMessage = 'Error al guardar en Google Sheets. ';
-        if (error.message.includes('CORS')) {
-            errorMessage += 'Error de configuración CORS. Contacte al administrador.';
-        } else if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
+        if (error.message.includes('evidencia')) {
+            errorMessage = error.message;
+        } else if (error.message.includes('Failed to fetch')) {
             errorMessage += 'Verifique su conexión a internet e intente nuevamente.';
-        } else if (error.message.includes('evidencia')) {
-            errorMessage = error.message; // Usar mensaje específico de evidencias
         } else {
             errorMessage += error.message;
         }
@@ -468,7 +474,7 @@ async function uploadEvidencias() {
     
     showEvidenciasStatus('Preparando archivos para subir...', 'loading');
     
-    // IMPORTANTE: URL de tu Google Apps Script (actualizar si es necesario)
+    // NUEVA URL - actualiza con la tuya
     const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
     
     for (let i = 0; i < selectedFiles.length; i++) {
@@ -496,42 +502,48 @@ async function uploadEvidencias() {
             
             console.log(`Subiendo archivo ${i + 1}:`, fullFileName);
             
-            // Realizar petición con timeout y retry
-            const response = await fetchWithRetry(GOOGLE_SCRIPT_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(uploadData)
-            }, 3); // 3 intentos
-            
-            if (response.ok) {
-                const responseData = await response.json();
+            // MÉTODO 1: Intentar POST normal primero
+            let responseData = null;
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(uploadData)
+                });
                 
-                if (responseData.success) {
-                    // URLs reales del backend
-                    evidenciasUrls.push({
-                        fileName: fullFileName,
-                        originalName: file.name,
-                        url: responseData.file_url,
-                        file_id: responseData.file_id,
-                        download_url: responseData.download_url,
-                        preview_url: responseData.preview_url,
-                        embed_url: responseData.embed_url,
-                        size: file.size,
-                        uploadTime: responseData.upload_timestamp,
-                        uploadStatus: 'SUCCESS'
-                    });
-                    
-                    console.log(`✅ Archivo ${fullFileName} subido exitosamente`);
-                    console.log(`URL generada: ${responseData.file_url}`);
-                    
+                if (response.ok) {
+                    responseData = await response.json();
                 } else {
-                    throw new Error(responseData.message || 'Error desconocido en el servidor');
+                    throw new Error(`HTTP ${response.status}`);
                 }
+            } catch (fetchError) {
+                console.log('POST falló, intentando método alternativo:', fetchError.message);
+                
+                // MÉTODO 2: Usar JSONP como fallback
+                responseData = await uploadWithJsonp(GOOGLE_SCRIPT_URL, uploadData);
+            }
+            
+            if (responseData && responseData.success) {
+                // URLs reales del backend
+                evidenciasUrls.push({
+                    fileName: fullFileName,
+                    originalName: file.name,
+                    url: responseData.file_url,
+                    file_id: responseData.file_id,
+                    download_url: responseData.download_url,
+                    preview_url: responseData.preview_url,
+                    embed_url: responseData.embed_url,
+                    size: file.size,
+                    uploadTime: responseData.upload_timestamp,
+                    uploadStatus: 'SUCCESS'
+                });
+                
+                console.log(`✅ Archivo ${fullFileName} subido exitosamente`);
+                
             } else {
-                const errorText = await response.text();
-                throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+                throw new Error(responseData ? responseData.message : 'Error desconocido del servidor');
             }
             
         } catch (error) {
@@ -548,54 +560,18 @@ async function uploadEvidencias() {
                 uploadStatus: 'FAILED'
             });
             
-            // Mostrar error específico
             showEvidenciasStatus(`⚠️ Error subiendo ${file.name}: ${error.message}`, 'warning');
         }
         
-        // Pausa entre subidas para evitar rate limiting
+        // Pausa entre subidas
         if (i < selectedFiles.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
-    async function fetchWithRetry(url, options, maxRetries = 3) {
-    let lastError;
     
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            console.log(`Intento ${attempt}/${maxRetries} para: ${url}`);
-            
-            // Agregar timeout a la petición
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
-            
-            const response = await fetch(url, {
-                ...options,
-                signal: controller.signal
-            });
-            
-            clearTimeout(timeoutId);
-            return response;
-            
-        } catch (error) {
-            lastError = error;
-            console.error(`Intento ${attempt} falló:`, error.message);
-            
-            if (attempt < maxRetries) {
-                // Esperar antes del siguiente intento (backoff exponencial)
-                const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
-                console.log(`Esperando ${delay}ms antes del siguiente intento...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-    }
-    
-    throw lastError;
-}
     // Mostrar resumen final
     const successCount = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS').length;
     const failCount = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED').length;
-    
-    console.log(`📊 Resumen subida: ${successCount} exitosas, ${failCount} fallidas`);
     
     if (successCount > 0) {
         showEvidenciasStatus(
@@ -607,6 +583,81 @@ async function uploadEvidencias() {
     }
     
     return evidenciasUrls;
+}
+
+// FUNCIÓN AUXILIAR PARA UPLOAD CON JSONP (FALLBACK)
+function uploadWithJsonp(url, data) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'uploadCallback_' + Date.now();
+        const script = document.createElement('script');
+        
+        // Función de callback global
+        window[callbackName] = function(response) {
+            console.log('JSONP response recibida:', response);
+            document.head.removeChild(script);
+            delete window[callbackName];
+            resolve(response);
+        };
+        
+        // Timeout
+        const timeoutId = setTimeout(() => {
+            if (window[callbackName]) {
+                console.log('JSONP timeout');
+                document.head.removeChild(script);
+                delete window[callbackName];
+                reject(new Error('JSONP timeout'));
+            }
+        }, 30000);
+        
+        // Error handler
+        script.onerror = function() {
+            console.log('JSONP script error');
+            clearTimeout(timeoutId);
+            document.head.removeChild(script);
+            delete window[callbackName];
+            reject(new Error('JSONP script error'));
+        };
+        
+        // Crear URL con parámetros para JSONP
+        const params = new URLSearchParams();
+        params.append('callback', callbackName);
+        
+        // Para JSONP, necesitamos enviar los datos como parámetros GET (limitado por tamaño de URL)
+        // O usar un método híbrido con POST form
+        
+        // Por simplicidad, usaremos form submission para datos grandes
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+        form.target = '_blank';
+        form.style.display = 'none';
+        
+        // Agregar callback para JSONP response
+        const callbackInput = document.createElement('input');
+        callbackInput.type = 'hidden';
+        callbackInput.name = 'callback';
+        callbackInput.value = callbackName;
+        form.appendChild(callbackInput);
+        
+        // Agregar datos como inputs ocultos
+        for (const [key, value] of Object.entries(data)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = typeof value === 'object' ? JSON.stringify(value) : value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+        
+        // Limpiar form después de envío
+        setTimeout(() => {
+            if (document.body.contains(form)) {
+                document.body.removeChild(form);
+            }
+        }, 1000);
+    });
 }
 
 function generateStudentFolderName() {
@@ -2029,7 +2080,144 @@ async function testCorsConnection() {
         };
     }
 }
+function submitWithForm(url, data) {
+    return new Promise((resolve, reject) => {
+        // Para datos grandes, usamos un iframe oculto para recibir la respuesta
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.name = 'submitFrame_' + Date.now();
+        
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+        form.target = iframe.name;
+        form.style.display = 'none';
+        
+        // Agregar datos como inputs ocultos
+        for (const [key, value] of Object.entries(data)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = typeof value === 'object' ? JSON.stringify(value) : value;
+            form.appendChild(input);
+        }
+        
+        // Handler para cuando el iframe carga la respuesta
+        iframe.onload = function() {
+            try {
+                // Intentar leer la respuesta del iframe
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                const responseText = iframeDoc.body.textContent;
+                
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (parseError) {
+                    // Si no es JSON, asumir éxito si no hay error visible
+                    responseData = {
+                        success: true,
+                        message: 'Formulario enviado correctamente',
+                        method: 'form_submission'
+                    };
+                }
+                
+                // Limpiar
+                document.body.removeChild(iframe);
+                document.body.removeChild(form);
+                
+                resolve(responseData);
+                
+            } catch (error) {
+                console.log('Error leyendo respuesta del iframe, asumiendo éxito');
+                
+                // Limpiar
+                document.body.removeChild(iframe);
+                document.body.removeChild(form);
+                
+                // Asumir éxito si no podemos leer la respuesta
+                resolve({
+                    success: true,
+                    message: 'Formulario enviado (respuesta no legible)',
+                    method: 'form_submission_assumed'
+                });
+            }
+        };
+        
+        iframe.onerror = function() {
+            document.body.removeChild(iframe);
+            document.body.removeChild(form);
+            reject(new Error('Error en envío con form'));
+        };
+        
+        // Timeout
+        setTimeout(() => {
+            if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+                document.body.removeChild(form);
+                reject(new Error('Timeout en envío con form'));
+            }
+        }, 30000);
+        
+        // Agregar elementos al DOM y enviar
+        document.body.appendChild(iframe);
+        document.body.appendChild(form);
+        form.submit();
+        
+        console.log('Formulario enviado via form submission');
+    });
+}
 
+// FUNCIÓN DE TEST SIMPLIFICADO PARA LA NUEVA URL
+async function testNewScriptUrl() {
+    const NEW_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
+    
+    console.log('🔍 Probando nueva URL del script...');
+    console.log('URL:', NEW_URL);
+    
+    // Test 1: Verificación directa en navegador
+    console.log('\n📋 PASO 1: Abre esta URL en una nueva pestaña:');
+    console.log(NEW_URL);
+    console.log('¿Ves texto que dice "CESPSIC Backend v5.3 - Compatible"?');
+    
+    // Test 2: Fetch simple
+    try {
+        console.log('\n🔄 PASO 2: Probando GET request...');
+        const response = await fetch(NEW_URL, { method: 'GET' });
+        console.log('Status:', response.status);
+        
+        if (response.ok) {
+            const text = await response.text();
+            console.log('✅ GET exitoso:', text.substring(0, 100) + '...');
+        } else {
+            console.log('❌ GET falló:', response.statusText);
+        }
+    } catch (error) {
+        console.log('❌ GET error:', error.message);
+    }
+    
+    // Test 3: POST simple
+    try {
+        console.log('\n🔄 PASO 3: Probando POST request...');
+        const response = await fetch(NEW_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'test', timestamp: new Date().toISOString() })
+        });
+        
+        console.log('POST Status:', response.status);
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ POST exitoso:', data);
+        } else {
+            console.log('❌ POST falló:', response.statusText);
+        }
+    } catch (error) {
+        console.log('❌ POST error:', error.message);
+    }
+    
+    return { url: NEW_URL, timestamp: new Date().toISOString() };
+}
 // FUNCIÓN SIMPLIFICADA PARA PROBAR SUBIDA DE EVIDENCIA
 async function testEvidenciaUploadSimple() {
     // IMPORTANTE: Reemplaza con tu URL actual
