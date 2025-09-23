@@ -1912,3 +1912,215 @@ function getCurrentLocation() {
         options
     );
 }
+// FUNCIÓN PARA PROBAR CORS DESDE LA CONSOLA DEL NAVEGADOR
+async function testCorsConnection() {
+    // IMPORTANTE: Reemplaza con tu URL actual de Google Apps Script
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    
+    console.log('🔍 Probando CORS con Google Apps Script...');
+    console.log('URL:', GOOGLE_SCRIPT_URL);
+    
+    try {
+        // Test 1: GET request (sin preflight)
+        console.log('\n--- TEST 1: GET Request ---');
+        const getResponse = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'GET'
+        });
+        
+        console.log('GET Status:', getResponse.status);
+        console.log('GET Headers:', [...getResponse.headers.entries()]);
+        
+        if (getResponse.ok) {
+            const getText = await getResponse.text();
+            console.log('GET Response:', getText);
+            console.log('✅ GET request exitoso');
+        } else {
+            console.log('❌ GET request falló');
+        }
+        
+        // Test 2: POST request (con preflight)
+        console.log('\n--- TEST 2: POST Request (Preflight) ---');
+        const postResponse = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'test_cors',
+                timestamp: new Date().toISOString()
+            })
+        });
+        
+        console.log('POST Status:', postResponse.status);
+        console.log('POST Headers:', [...postResponse.headers.entries()]);
+        
+        if (postResponse.ok) {
+            const postText = await postResponse.text();
+            console.log('POST Response:', postText);
+            console.log('✅ POST request exitoso');
+            
+            // Intentar parsear como JSON
+            try {
+                const postJson = JSON.parse(postText);
+                console.log('JSON parsed:', postJson);
+            } catch (e) {
+                console.log('Response no es JSON válido');
+            }
+        } else {
+            console.log('❌ POST request falló');
+        }
+        
+        // Test 3: OPTIONS request (preflight manual)
+        console.log('\n--- TEST 3: OPTIONS Request (Manual Preflight) ---');
+        try {
+            const optionsResponse = await fetch(GOOGLE_SCRIPT_URL, {
+                method: 'OPTIONS',
+                headers: {
+                    'Access-Control-Request-Method': 'POST',
+                    'Access-Control-Request-Headers': 'Content-Type'
+                }
+            });
+            
+            console.log('OPTIONS Status:', optionsResponse.status);
+            console.log('OPTIONS Headers:', [...optionsResponse.headers.entries()]);
+            
+            // Verificar headers CORS específicos
+            const corsOrigin = optionsResponse.headers.get('Access-Control-Allow-Origin');
+            const corsMethods = optionsResponse.headers.get('Access-Control-Allow-Methods');
+            const corsHeaders = optionsResponse.headers.get('Access-Control-Allow-Headers');
+            
+            console.log('CORS Allow-Origin:', corsOrigin);
+            console.log('CORS Allow-Methods:', corsMethods);
+            console.log('CORS Allow-Headers:', corsHeaders);
+            
+            if (corsOrigin === '*' && corsMethods && corsHeaders) {
+                console.log('✅ CORS headers correctos');
+            } else {
+                console.log('❌ CORS headers incorrectos o faltantes');
+            }
+            
+        } catch (optionsError) {
+            console.log('❌ OPTIONS request falló:', optionsError);
+        }
+        
+        console.log('\n=== RESUMEN ===');
+        console.log('Si ves ✅ en GET y POST, CORS está funcionando');
+        console.log('Si ves ❌, revisa la configuración del Google Apps Script');
+        
+        return {
+            success: true,
+            message: 'Tests de CORS completados'
+        };
+        
+    } catch (error) {
+        console.error('❌ Error en test de CORS:', error);
+        
+        if (error.message.includes('CORS')) {
+            console.log('\n🔧 DIAGNÓSTICO DEL ERROR CORS:');
+            console.log('1. Verifica que Google Apps Script tenga la función doOptions()');
+            console.log('2. Verifica que doPost() incluya headers CORS');
+            console.log('3. Verifica que el script esté republicado');
+            console.log('4. Verifica que la URL sea correcta');
+        }
+        
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// FUNCIÓN SIMPLIFICADA PARA PROBAR SUBIDA DE EVIDENCIA
+async function testEvidenciaUploadSimple() {
+    // IMPORTANTE: Reemplaza con tu URL actual
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    
+    console.log('🔍 Probando subida de evidencia simple...');
+    
+    // Crear imagen de prueba muy pequeña (1x1 pixel rojo en base64)
+    const testImageBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    
+    const testData = {
+        action: 'upload_evidencia',
+        fileName: 'test_image.png',
+        fileData: testImageBase64,
+        mimeType: 'image/png',
+        studentFolder: 'Test_Student',
+        userEmail: 'test@example.com',
+        timestamp: new Date().toISOString()
+    };
+    
+    try {
+        console.log('Enviando datos de prueba:', testData);
+        
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(testData)
+        });
+        
+        console.log('Response status:', response.status);
+        console.log('Response headers:', [...response.headers.entries()]);
+        
+        if (response.ok) {
+            const responseText = await response.text();
+            console.log('Response text:', responseText);
+            
+            try {
+                const responseJson = JSON.parse(responseText);
+                console.log('Response JSON:', responseJson);
+                
+                if (responseJson.success) {
+                    console.log('✅ Subida de evidencia exitosa!');
+                    console.log('File ID:', responseJson.file_id);
+                    console.log('URL:', responseJson.file_url);
+                    return responseJson;
+                } else {
+                    console.log('❌ Error en la respuesta:', responseJson.message);
+                    return responseJson;
+                }
+            } catch (parseError) {
+                console.log('❌ Error parseando JSON:', parseError);
+                return { success: false, error: 'Response not valid JSON' };
+            }
+        } else {
+            console.log('❌ HTTP Error:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.log('Error text:', errorText);
+            return { success: false, error: `HTTP ${response.status}: ${errorText}` };
+        }
+        
+    } catch (error) {
+        console.error('❌ Error en test de evidencia:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// FUNCIÓN PARA VERIFICAR QUE LA URL DEL SCRIPT ES CORRECTA
+function checkScriptUrl() {
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    
+    console.log('🔍 Verificando URL del script...');
+    console.log('URL actual:', GOOGLE_SCRIPT_URL);
+    
+    // Verificar formato básico
+    if (GOOGLE_SCRIPT_URL.includes('script.google.com/macros/s/') && GOOGLE_SCRIPT_URL.endsWith('/exec')) {
+        console.log('✅ Formato de URL correcto');
+    } else {
+        console.log('❌ Formato de URL incorrecto');
+        console.log('Debería ser: https://script.google.com/macros/s/[ID]/exec');
+    }
+    
+    // Extraer ID del script
+    const urlParts = GOOGLE_SCRIPT_URL.split('/');
+    const scriptId = urlParts[urlParts.length - 2];
+    console.log('Script ID extraído:', scriptId);
+    
+    if (scriptId && scriptId.length > 20) {
+        console.log('✅ ID del script parece válido');
+    } else {
+        console.log('❌ ID del script parece inválido');
+    }
+}
