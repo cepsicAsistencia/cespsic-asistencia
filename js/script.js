@@ -1915,7 +1915,7 @@ function getCurrentLocation() {
 // FUNCIÓN PARA PROBAR CORS DESDE LA CONSOLA DEL NAVEGADOR
 async function testCorsConnection() {
     // IMPORTANTE: Reemplaza con tu URL actual de Google Apps Script
-    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
     
     console.log('🔍 Probando CORS con Google Apps Script...');
     console.log('URL:', GOOGLE_SCRIPT_URL);
@@ -2033,7 +2033,7 @@ async function testCorsConnection() {
 // FUNCIÓN SIMPLIFICADA PARA PROBAR SUBIDA DE EVIDENCIA
 async function testEvidenciaUploadSimple() {
     // IMPORTANTE: Reemplaza con tu URL actual
-    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
     
     console.log('🔍 Probando subida de evidencia simple...');
     
@@ -2100,7 +2100,7 @@ async function testEvidenciaUploadSimple() {
 
 // FUNCIÓN PARA VERIFICAR QUE LA URL DEL SCRIPT ES CORRECTA
 function checkScriptUrl() {
-    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
     
     console.log('🔍 Verificando URL del script...');
     console.log('URL actual:', GOOGLE_SCRIPT_URL);
