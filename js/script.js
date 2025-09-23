@@ -1097,14 +1097,14 @@ function resetFormOnly() {
     
     document.getElementById('retry_location_btn').style.display = 'none';
     
-    // MANTENER información de autenticación y privacidad
+    // MANTENER la autenticación y privacidad - NO resetear estos valores
     document.getElementById('email').value = currentUser.email;
     document.getElementById('google_user_id').value = currentUser.id;
     
-    // NO cambiar privacyConsent ni isAuthenticated
-    // Estas líneas deben mantenerse como están:
-    // privacyConsent = sigue siendo true
-    // isAuthenticated = sigue siendo true
+    // NO TOCAR ESTAS VARIABLES:
+    // privacyConsent debe seguir siendo true
+    // isAuthenticated debe seguir siendo true
+    // currentUser debe mantenerse
     
     locationValid = false;
     locationAttempts = 0;
