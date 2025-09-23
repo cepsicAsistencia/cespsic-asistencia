@@ -283,7 +283,7 @@ async function handleSubmit(e) {
         console.log('Evidencias exitosas:', data.total_evidencias);
         
         // IMPORTANTE: URL de tu Google Apps Script
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
         
         // Enviar formulario principal
         const response = await fetchWithRetry(GOOGLE_SCRIPT_URL, {
@@ -366,7 +366,7 @@ function validateEvidenciasUrls(evidenciasUrls) {
     return validUrls;
 }
 async function testConnectivity() {
-    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
     
     try {
         console.log('🔍 Probando conectividad con Google Apps Script...');
@@ -469,7 +469,7 @@ async function uploadEvidencias() {
     showEvidenciasStatus('Preparando archivos para subir...', 'loading');
     
     // IMPORTANTE: URL de tu Google Apps Script (actualizar si es necesario)
-    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
     
     for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
@@ -1095,7 +1095,7 @@ async function recordPrivacyAction(action) {
             authentication_purpose: authenticationPurpose
         };
         
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuqoqDJBYrHFJqh4sLkHkd1582PdCB535XqQDYcakJfFqR_N0KgPnRxl2qUatfUuWC/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMFGlROijU-qQAXJyAAP-uHhsXh6XYpv7EQuC1HbZyEunGBi3KaC-DZRzttDPVUKMw/exec';
         
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
