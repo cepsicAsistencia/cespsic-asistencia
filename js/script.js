@@ -605,7 +605,7 @@ async function uploadEvidencias() {
     if (selectedFiles.length === 0) return [];
     
     const tipoRegistro = document.getElementById('tipo_registro').value || 'sin_tipo';
-    const evidenciasUrls = [];
+    const evidenciasInfo = [];
     
     showEvidenciasStatus('Preparando archivos para subir...', 'loading');
     
@@ -632,78 +632,54 @@ async function uploadEvidencias() {
             
             console.log(`Subiendo archivo ${i + 1}:`, fullFileName);
             
-            // Usar método con captura de respuesta mejorada
-            const responseData = await uploadSingleEvidencia(uploadData);
+            // Enviar archivo (no necesitamos respuesta, solo confirmar envío)
+            await sendDataWithFallback(uploadData);
             
-            if (responseData && responseData.success && responseData.file_id) {
-                // URLs reales del backend
-                evidenciasUrls.push({
-                    fileName: fullFileName,
-                    originalName: file.name,
-                    url: responseData.file_url,
-                    file_id: responseData.file_id,
-                    download_url: responseData.download_url,
-                    preview_url: responseData.preview_url,
-                    embed_url: responseData.embed_url,
-                    size: file.size,
-                    uploadTime: responseData.upload_timestamp,
-                    uploadStatus: 'SUCCESS',
-                    method: 'form_submission_with_response'
-                });
-                
-                console.log(`✅ Archivo ${fullFileName} subido exitosamente`);
-                console.log(`URL real obtenida: ${responseData.file_url}`);
-                
-            } else {
-                // Si no se pudo obtener respuesta, usar método de placeholder temporal
-                console.log('No se pudo obtener URL real, usando placeholder temporal');
-                evidenciasUrls.push({
-                    fileName: fullFileName,
-                    originalName: file.name,
-                    url: 'PROCESANDO_EVIDENCIA',
-                    file_id: 'TEMP_' + Date.now(),
-                    size: file.size,
-                    uploadTime: new Date().toISOString(),
-                    uploadStatus: 'UPLOADED_PENDING_URL',
-                    method: 'form_submission_no_response'
-                });
-            }
+            // Guardar solo información básica (sin URLs)
+            evidenciasInfo.push({
+                fileName: fullFileName,
+                originalName: file.name,
+                size: file.size,
+                uploadTime: new Date().toISOString(),
+                uploadStatus: 'SUCCESS'
+            });
+            
+            console.log(`✅ Archivo ${fullFileName} enviado exitosamente`);
             
         } catch (error) {
             console.error(`❌ Error subiendo archivo ${file.name}:`, error);
             
-            evidenciasUrls.push({
+            evidenciasInfo.push({
                 fileName: fullFileName,
                 originalName: file.name,
-                url: 'ERROR_AL_SUBIR',
-                error: error.message,
                 size: file.size,
                 uploadTime: new Date().toISOString(),
-                uploadStatus: 'FAILED'
+                uploadStatus: 'FAILED',
+                error: error.message
             });
             
-            showEvidenciasStatus(`⚠️ Error subiendo ${file.name}: ${error.message}`, 'warning');
+            showEvidenciasStatus(`⚠️ Error subiendo ${file.name}`, 'warning');
         }
         
         // Pausa entre subidas
         if (i < selectedFiles.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
         }
     }
     
-    const successCount = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS' || e.uploadStatus === 'UPLOADED_PENDING_URL').length;
-    const failCount = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED').length;
+    const successCount = evidenciasInfo.filter(e => e.uploadStatus === 'SUCCESS').length;
+    const failCount = evidenciasInfo.filter(e => e.uploadStatus === 'FAILED').length;
     
     if (successCount > 0) {
         showEvidenciasStatus(
-            `✅ ${successCount} evidencia(s) procesada(s)${failCount > 0 ? ` (${failCount} errores)` : ''}`, 
+            `✅ ${successCount} evidencia(s) subida(s)${failCount > 0 ? ` (${failCount} errores)` : ''}`, 
             failCount > 0 ? 'warning' : 'success'
         );
     } else if (failCount > 0) {
-        showEvidenciasStatus(`❌ Error: No se pudo procesar ninguna evidencia`, 'error');
+        showEvidenciasStatus(`❌ Error: No se pudo subir ninguna evidencia`, 'error');
     }
     
-    return evidenciasUrls;
+    return evidenciasInfo;
 }
 
 // Nueva función para subir una evidencia individual con mejor captura de respuesta
@@ -1220,6 +1196,194 @@ async function handleSubmit(e) {
             hideStatus();
         }, 5000);
     }
+}
+
+function handleAttendanceSubmission(data) {
+  console.log('=== PROCESANDO REGISTRO DE ASISTENCIA ===');
+  console.log('Datos recibidos:', JSON.stringify(data, null, 2));
+  
+  try {
+    // VALIDACIONES BÁSICAS
+    if (!data.email || !data.google_user_id) {
+      throw new Error('Datos de autenticación faltantes');
+    }
+    
+    if (!data.modalidad || data.modalidad === '' || data.modalidad === 'undefined') {
+      throw new Error('Campo Modalidad es requerido y no puede estar vacío');
+    }
+    
+    if (!data.latitude || !data.longitude || data.location_validation !== 'passed') {
+      throw new Error('Ubicación GPS requerida y válida');
+    }
+    
+    // Abrir Google Sheet
+    const sheet = SpreadsheetApp.openById(SHEET_ID).getActiveSheet();
+    
+    // PROCESAR ACTIVIDADES
+    let actividades = '';
+    if (data.actividades) {
+      if (Array.isArray(data.actividades)) {
+        actividades = data.actividades.join(', ');
+      } else if (typeof data.actividades === 'string') {
+        actividades = data.actividades;
+      }
+    }
+    
+    if (!actividades && data['actividades[]']) {
+      if (Array.isArray(data['actividades[]'])) {
+        actividades = data['actividades[]'].join(', ');
+      } else {
+        actividades = data['actividades[]'];
+      }
+    }
+    
+    // PROCESAR EVIDENCIAS SIMPLIFICADO
+    let evidenciasInfo = [];
+    let evidenciasNombres = '';
+    let totalEvidencias = 0;
+    let carpetaEvidencias = '';
+    
+    // Obtener carpeta de evidencias del usuario
+    const apellidoPaterno = data.apellido_paterno || 'Sin_Apellido';
+    const apellidoMaterno = data.apellido_materno || 'Sin_Apellido';
+    const nombre = data.nombre || 'Sin_Nombre';
+    carpetaEvidencias = `${apellidoPaterno}_${apellidoMaterno}_${nombre}`.replace(/[^a-zA-Z0-9_]/g, '');
+    
+    // Procesar evidencias si existen
+    if (data.evidencias_urls) {
+      try {
+        if (typeof data.evidencias_urls === 'string') {
+          evidenciasInfo = JSON.parse(data.evidencias_urls);
+        } else if (Array.isArray(data.evidencias_urls)) {
+          evidenciasInfo = data.evidencias_urls;
+        }
+      } catch (parseError) {
+        console.error('Error parseando evidencias_urls:', parseError);
+        evidenciasInfo = [];
+      }
+    }
+    
+    // Extraer solo los nombres de archivos exitosos
+    if (Array.isArray(evidenciasInfo) && evidenciasInfo.length > 0) {
+      const nombresExitosos = evidenciasInfo
+        .filter(evidencia => evidencia.uploadStatus === 'SUCCESS')
+        .map(evidencia => evidencia.fileName || evidencia.originalName || 'archivo_sin_nombre');
+      
+      evidenciasNombres = nombresExitosos.join(', ');
+      totalEvidencias = nombresExitosos.length;
+    }
+    
+    // Si no hay evidencias procesadas pero hay total_evidencias, usar ese valor
+    if (totalEvidencias === 0 && data.total_evidencias) {
+      totalEvidencias = parseInt(data.total_evidencias) || 0;
+    }
+    
+    console.log('=== PROCESAMIENTO DE EVIDENCIAS SIMPLIFICADO ===');
+    console.log('Total evidencias:', totalEvidencias);
+    console.log('Nombres evidencias:', evidenciasNombres);
+    console.log('Carpeta evidencias:', carpetaEvidencias);
+    
+    // PREPARAR FILA PARA INSERTAR (36 columnas - agregamos carpeta de evidencias)
+    const row = [
+      new Date(data.timestamp || new Date()),           // A: Timestamp
+      data.email || '',                                 // B: Email
+      data.google_user_id || '',                        // C: Google_User_ID
+      data.authenticated_user_name || '',               // D: Nombre_Autenticado
+      data.authentication_timestamp || '',              // E: Timestamp_Autenticacion
+      parseFloat(data.latitude) || '',                  // F: Latitud
+      parseFloat(data.longitude) || '',                 // G: Longitud
+      data.location_status || '',                       // H: Estado_Ubicacion
+      data.ubicacion_detectada || '',                   // I: Ubicacion_Detectada
+      data.direccion_completa || '',                    // J: Direccion_Completa
+      data.precision_gps || '',                         // K: Precision_GPS
+      parseInt(data.precision_gps_metros) || 0,         // L: Precision_GPS_Metros
+      data.location_validation || '',                   // M: Validacion_Ubicacion
+      data.nombre || '',                                // N: Nombre
+      data.apellido_paterno || '',                      // O: Apellido_Paterno
+      data.apellido_materno || '',                      // P: Apellido_Materno
+      data.tipo_estudiante || '',                       // Q: Tipo_Estudiante
+      data.modalidad || '',                             // R: Modalidad
+      data.fecha || '',                                 // S: Fecha
+      data.hora || '',                                  // T: Hora
+      data.tipo_registro || '',                         // U: Tipo_Registro
+      data.permiso_detalle || '',                       // V: Permiso_Detalle
+      data.otro_detalle || '',                          // W: Otro_Detalle
+      parseInt(data.intervenciones_psicologicas) || 0,  // X: Intervenciones_Psicologicas
+      parseInt(data.ninos_ninas) || 0,                  // Y: Ninos_Ninas
+      parseInt(data.adolescentes) || 0,                 // Z: Adolescentes
+      parseInt(data.adultos) || 0,                      // AA: Adultos
+      parseInt(data.mayores_60) || 0,                   // AB: Mayores_60
+      parseInt(data.familia) || 0,                      // AC: Familia
+      actividades,                                      // AD: Actividades_Realizadas
+      data.actividades_varias_texto || '',             // AE: Actividades_Varias_Detalle
+      data.pruebas_psicologicas_texto || '',           // AF: Pruebas_Psicologicas_Detalle
+      data.comentarios_adicionales || '',              // AG: Comentarios_Adicionales
+      totalEvidencias,                                  // AH: Total_Evidencias
+      evidenciasNombres,                                // AI: Nombres_Evidencias *** NUEVO ***
+      carpetaEvidencias                                 // AJ: Carpeta_Evidencias *** NUEVO ***
+    ];
+    
+    // VALIDACIÓN FINAL
+    console.log('=== VALIDACIÓN FILA ANTES DE INSERTAR ===');
+    console.log('Posición 17 (Modalidad):', row[17]);
+    console.log('Posición 33 (Total Evidencias):', row[33]);
+    console.log('Posición 34 (Nombres Evidencias):', row[34]);
+    console.log('Posición 35 (Carpeta Evidencias):', row[35]);
+    console.log('Longitud de fila:', row.length);
+    
+    if (!row[17] || row[17] === '' || row[17] === 'undefined') {
+      throw new Error('Error interno: Modalidad no se procesó correctamente');
+    }
+    
+    // Insertar fila en Google Sheet
+    sheet.appendRow(row);
+    const insertedRow = sheet.getLastRow();
+    
+    // VERIFICACIÓN POST-INSERCIÓN
+    const insertedData = sheet.getRange(insertedRow, 1, 1, row.length).getValues()[0];
+    console.log('=== VERIFICACIÓN POST-INSERCIÓN ===');
+    console.log('Fila insertada número:', insertedRow);
+    console.log('Modalidad insertada:', insertedData[17]);
+    console.log('Total evidencias insertado:', insertedData[33]);
+    console.log('Nombres evidencias insertados:', insertedData[34]);
+    console.log('Carpeta evidencias insertada:', insertedData[35]);
+    
+    // Registrar en auditoría
+    registrarAuditoria(data, insertedRow);
+    
+    console.log('=== REGISTRO EXITOSO ===');
+    console.log('Usuario:', data.authenticated_user_name);
+    console.log('Modalidad:', row[17]);
+    console.log('Evidencias - Total:', row[33]);
+    console.log('Evidencias - Nombres:', row[34]);
+    console.log('Evidencias - Carpeta:', row[35]);
+    console.log('Fila insertada:', insertedRow);
+    
+    return {
+      success: true,
+      message: 'Asistencia registrada correctamente',
+      timestamp: new Date().toISOString(),
+      user_email: data.email,
+      user_name: data.authenticated_user_name,
+      modalidad: row[17],
+      row_number: insertedRow,
+      location: data.ubicacion_detectada,
+      evidencias_count: row[33],
+      evidencias_nombres: row[34],
+      evidencias_carpeta: row[35],
+      data_integrity_check: 'passed'
+    };
+    
+  } catch (error) {
+    console.error('=== ERROR EN REGISTRO ===');
+    console.error('Error:', error);
+    
+    return {
+      success: false,
+      message: 'Error al registrar asistencia: ' + error.toString(),
+      timestamp: new Date().toISOString()
+    };
+  }
 }
 
 function resetFormOnly() {
