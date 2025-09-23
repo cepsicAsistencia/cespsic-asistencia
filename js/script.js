@@ -368,6 +368,9 @@ async function handleLoginFlow() {
         enableForm();
         getCurrentLocation();
 
+        // AGREGAR ESTA LÍNEA:
+        updateSubmitButton();
+        
         showStatus(`¡Bienvenido ${currentUser.name}! Autenticación exitosa.`, 'success');
         setTimeout(() => hideStatus(), 3000);
     } catch (error) {
@@ -1083,6 +1086,7 @@ function resetFormOnly() {
     document.getElementById('evidencias_section').style.display = 'none';
     resetEvidenciasSection();
     
+    // Resetear campos de ubicación
     document.getElementById('ubicacion_detectada').value = 'Obteniendo ubicación...';
     document.getElementById('direccion_completa').value = 'Consultando dirección...';
     document.getElementById('precision_gps').value = 'Calculando...';
@@ -1092,8 +1096,15 @@ function resetFormOnly() {
     });
     
     document.getElementById('retry_location_btn').style.display = 'none';
+    
+    // MANTENER información de autenticación y privacidad
     document.getElementById('email').value = currentUser.email;
     document.getElementById('google_user_id').value = currentUser.id;
+    
+    // NO cambiar privacyConsent ni isAuthenticated
+    // Estas líneas deben mantenerse como están:
+    // privacyConsent = sigue siendo true
+    // isAuthenticated = sigue siendo true
     
     locationValid = false;
     locationAttempts = 0;
