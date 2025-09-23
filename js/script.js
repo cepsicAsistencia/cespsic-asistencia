@@ -2124,3 +2124,20 @@ function checkScriptUrl() {
         console.log('❌ ID del script parece inválido');
     }
 }
+async function runAllTests() {
+    console.log('🚀 Ejecutando todos los tests...\n');
+    
+    checkScriptUrl();
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const corsResult = await testCorsConnection();
+    
+    if (corsResult.success) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const evidenciaResult = await testEvidenciaUploadSimple();
+        return { cors: corsResult, evidencia: evidenciaResult };
+    } else {
+        return { cors: corsResult, evidencia: { success: false, error: 'CORS failed' } };
+    }
+}
