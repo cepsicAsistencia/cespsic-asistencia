@@ -194,7 +194,13 @@ async function recordPrivacyAction(action) {
 // ========== GOOGLE SIGN-IN ==========
 function initializeForm() {
     const today = new Date();
-    document.getElementById('fecha').value = today.toISOString().split('T')[0];
+    // Obtener fecha local (no UTC)
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const fechaLocal = `${year}-${month}-${day}`;
+    
+    document.getElementById('fecha').value = fechaLocal;
     updateCurrentTime();
     document.getElementById('timestamp').value = new Date().toISOString();
 }
