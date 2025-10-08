@@ -207,7 +207,10 @@ function initializeForm() {
 
 function updateCurrentTime() {
     const now = new Date();
-    document.getElementById('hora').value = now.toTimeString().slice(0, 5);
+    //document.getElementById('hora').value = now.toTimeString().slice(0, 5);
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    document.getElementById('hora').value = `${hours}:${minutes}`;
 }
 
 function loadGoogleSignInScript() {
