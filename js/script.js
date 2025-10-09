@@ -1,3 +1,10 @@
+// ========== DETECCIÓN DE DISPOSITIVO Y NAVEGADOR ==========
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || 
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+console.log(`📱 Dispositivo: ${isIOS ? 'iOS' : 'Otro'} | Navegador: ${isSafari ? 'Safari' : 'Otro'}`);
+
 // Variables globales
 let currentLocation = null;
 let userEmail = null;
@@ -25,7 +32,13 @@ const ubicacionesUAS = [
     { name: "Universidad Autónoma de Sinaloa - Campus Central", lat: 24.7990, lng: -107.3950, radius: 200 }
 ];
 
+// Inicializar aplicación
 document.addEventListener('DOMContentLoaded', function() {
+    if (isIOS) {
+        console.log('🍎 Modo iOS activado - Aplicando compatibilidad especial');
+        checkHTTPS();
+    }
+    
     initializeForm();
     setupEventListeners();
     loadGoogleSignInScript();
@@ -34,10 +47,71 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateCurrentTime, 1000);
 });
 
+// ========== VALIDACIÓN HTTPS PARA iOS ==========
+function checkHTTPS() {
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        console.warn('⚠️ iOS requiere HTTPS para geolocalización');
+        showStatus('⚠️ Se recomienda usar HTTPS para mejor funcionalidad en iOS', 'warning');
+        setTimeout(() => hideStatus(), 5000);
+    }
+}
+
+// ========== LOCALSTORAGE SEGURO (COMPATIBLE CON MODO PRIVADO iOS) ==========
+function safeLocalStorage() {
+    try {
+        const test = '__storage_test__';
+        localStorage.setItem(test, test);
+        localStorage.removeItem(test);
+        return true;
+    } catch (e) {
+        console.warn('⚠️ localStorage no disponible (modo privado)', e);
+        return false;
+    }
+}
+
+function safeSetItem(key, value) {
+    if (safeLocalStorage()) {
+        try {
+            localStorage.setItem(key, value);
+            return true;
+        } catch (e) {
+            console.error('Error guardando en localStorage:', e);
+            return false;
+        }
+    }
+    console.warn('⚠️ localStorage bloqueado - datos no persistirán');
+    return false;
+}
+
+function safeGetItem(key) {
+    if (safeLocalStorage()) {
+        try {
+            return localStorage.getItem(key);
+        } catch (e) {
+            console.error('Error leyendo localStorage:', e);
+            return null;
+        }
+    }
+    return null;
+}
+
+function safeRemoveItem(key) {
+    if (safeLocalStorage()) {
+        try {
+            localStorage.removeItem(key);
+            return true;
+        } catch (e) {
+            console.error('Error removiendo de localStorage:', e);
+            return false;
+        }
+    }
+    return false;
+}
+
 // ========== PRIVACY MANAGEMENT ==========
 function checkPrivacyConsent() {
     try {
-        const storedConsent = localStorage.getItem('cespsic_privacy_accepted');
+        const storedConsent = safeGetItem('cespsic_privacy_accepted');
         if (storedConsent) {
             const consentData = JSON.parse(storedConsent);
             if (consentData.version === PRIVACY_VERSION && consentData.accepted && consentData.authenticated_user) {
@@ -45,13 +119,13 @@ function checkPrivacyConsent() {
                 updatePrivacyUI();
                 return;
             }
-            localStorage.removeItem('cespsic_privacy_accepted');
+            safeRemoveItem('cespsic_privacy_accepted');
         }
         privacyConsent = false;
         updatePrivacyUI();
     } catch (error) {
         console.error('Error verificando consentimiento:', error);
-        localStorage.removeItem('cespsic_privacy_accepted');
+        safeRemoveItem('cespsic_privacy_accepted');
         privacyConsent = false;
         updatePrivacyUI();
     }
@@ -146,7 +220,7 @@ function authenticateToRevoke() {
 async function revokePrivacyConsent() {
     try {
         await recordPrivacyAction('PRIVACY_REVOKED');
-        localStorage.removeItem('cespsic_privacy_accepted');
+        safeRemoveItem('cespsic_privacy_accepted');
         privacyConsent = false;
         isAuthenticated = false;
         currentUser = null;
@@ -184,7 +258,8 @@ async function recordPrivacyAction(action) {
         privacy_action: action,
         privacy_version: PRIVACY_VERSION,
         device_info: navigator.userAgent,
-        authentication_purpose: authenticationPurpose
+        authentication_purpose: authenticationPurpose,
+        is_ios: isIOS
     };
     
     await sendDataWithFallback(privacyData);
@@ -238,7 +313,8 @@ function initializeGoogleSignIn() {
             client_id: GOOGLE_CLIENT_ID,
             callback: handleCredentialResponse,
             auto_select: false,
-            cancel_on_tap_outside: true
+            cancel_on_tap_outside: true,
+            ux_mode: 'popup'
         });
         google.accounts.id.disableAutoSelect();
         google.accounts.id.cancel();
@@ -249,9 +325,60 @@ function initializeGoogleSignIn() {
 }
 
 function proceedWithGoogleSignIn() {
-    showVisibleGoogleButton();
+    if (isIOS) {
+        showIOSGoogleButton();
+    } else {
+        showVisibleGoogleButton();
+    }
 }
 
+// ========== iOS: BOTÓN GOOGLE (USA MODAL HTML EXISTENTE) ==========
+function showIOSGoogleButton() {
+    const modal = document.getElementById('privacy-modal');
+    const modalHeader = modal.querySelector('.modal-header');
+    const modalBody = modal.querySelector('.modal-body');
+    const modalFooter = modal.querySelector('.modal-footer');
+    
+    modalHeader.innerHTML = '<h2>🔐 Autenticación con Google</h2>';
+    modalBody.innerHTML = `
+        <p style="text-align: center; margin-bottom: 20px; color: #666;">
+            Haga clic en el botón azul para continuar:
+        </p>
+        <div id="ios-google-button-container" style="display: flex; justify-content: center; margin: 20px 0;"></div>
+    `;
+    modalFooter.innerHTML = `
+        <button class="btn-reject" onclick="closeIOSAuthModal()">Cancelar</button>
+    `;
+    
+    modal.style.display = 'flex';
+    
+    setTimeout(() => {
+        const buttonContainer = document.getElementById('ios-google-button-container');
+        if (buttonContainer) {
+            google.accounts.id.renderButton(buttonContainer, {
+                theme: "filled_blue",
+                size: "large",
+                text: "signin_with",
+                shape: "rectangular",
+                width: 250
+            });
+        }
+    }, 100);
+}
+
+function closeIOSAuthModal() {
+    const modal = document.getElementById('privacy-modal');
+    modal.style.display = 'none';
+    
+    if (privacyConsent && !isAuthenticated) {
+        privacyConsent = false;
+        updatePrivacyUI();
+        showStatus('Debe completar la autenticación.', 'error');
+        setTimeout(() => hideStatus(), 5000);
+    }
+}
+
+// ========== OTROS NAVEGADORES: MODAL DINÁMICO ==========
 function showVisibleGoogleButton() {
     const existingOverlay = document.getElementById('google-auth-overlay');
     if (existingOverlay) existingOverlay.remove();
@@ -305,7 +432,12 @@ function showVisibleGoogleButton() {
 
 async function handleCredentialResponse(response) {
     try {
-        closeAuthModal();
+        if (isIOS) {
+            closeIOSAuthModal();
+        } else {
+            closeAuthModal();
+        }
+        
         const userInfo = parseJwt(response.credential);
         
         currentUser = {
@@ -329,7 +461,11 @@ async function handleCredentialResponse(response) {
     } catch (error) {
         console.error('Error procesando credenciales:', error);
         showStatus('Error en la autenticación.', 'error');
-        closeAuthModal();
+        if (isIOS) {
+            closeIOSAuthModal();
+        } else {
+            closeAuthModal();
+        }
     }
 }
 
@@ -359,10 +495,11 @@ async function handleLoginFlow() {
             version: PRIVACY_VERSION,
             userAgent: navigator.userAgent,
             authenticated_user: currentUser.email,
-            authentication_timestamp: new Date().toISOString()
+            authentication_timestamp: new Date().toISOString(),
+            is_ios: isIOS
         };
         
-        localStorage.setItem('cespsic_privacy_accepted', JSON.stringify(consentData));
+        safeSetItem('cespsic_privacy_accepted', JSON.stringify(consentData));
         await recordPrivacyAction('PRIVACY_ACCEPTED');
         
         isAuthenticated = true;
@@ -473,34 +610,103 @@ function signOut() {
     }
 }
 
-// ========== EVIDENCIAS ==========
+// ========== EVIDENCIAS (iOS COMPATIBLE) ==========
 function setupEvidenciasHandlers() {
     const evidenciasInput = document.getElementById('evidencias');
-    evidenciasInput.addEventListener('change', function(e) {
-        handleFileSelection(e.target.files);
-    });
     
-    const evidenciasContainer = document.querySelector('.evidencias-container');
-    evidenciasContainer.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        evidenciasContainer.style.borderColor = '#4854c7';
-    });
-    
-    evidenciasContainer.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        evidenciasContainer.style.borderColor = '#667eea';
-    });
-    
-    evidenciasContainer.addEventListener('drop', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        evidenciasContainer.style.borderColor = '#667eea';
-        handleFileSelection(e.dataTransfer.files);
-    });
+    if (isIOS) {
+        // iOS: Evento simple, sin drag & drop
+        console.log('🍎 iOS: Configurando manejo simple de archivos');
+        evidenciasInput.addEventListener('change', function(e) {
+            handleIOSFileSelection(e.target.files);
+        });
+    } else {
+        // Android/Windows: Funcionalidad completa con drag & drop
+        evidenciasInput.addEventListener('change', function(e) {
+            handleFileSelection(e.target.files);
+        });
+        
+        const evidenciasContainer = document.querySelector('.evidencias-container');
+        evidenciasContainer.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            evidenciasContainer.style.borderColor = '#4854c7';
+        });
+        
+        evidenciasContainer.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            evidenciasContainer.style.borderColor = '#667eea';
+        });
+        
+        evidenciasContainer.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            evidenciasContainer.style.borderColor = '#667eea';
+            handleFileSelection(e.dataTransfer.files);
+        });
+    }
 }
 
+// iOS: Manejo simple de archivos (SIN DataTransfer)
+function handleIOSFileSelection(files) {
+    console.log(`📱 iOS: Procesando ${files.length} archivo(s)...`);
+    
+    const fileArray = Array.from(files);
+    const validFiles = [];
+    const errors = [];
+    
+    fileArray.forEach(file => {
+        console.log(`Archivo: ${file.name}, Tipo: ${file.type}, Tamaño: ${(file.size/1024/1024).toFixed(2)}MB`);
+        
+        if (!file.type) {
+            errors.push(`${file.name}: Sin tipo MIME`);
+            console.warn(`❌ ${file.name}: No tiene tipo MIME`);
+            return;
+        }
+        
+        if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+            errors.push(`${file.name}: Solo JPG, PNG, WEBP`);
+            console.warn(`❌ ${file.name}: Tipo no permitido`);
+            return;
+        }
+        
+        const sizeMB = file.size / 1024 / 1024;
+        if (file.size > MAX_FILE_SIZE) {
+            errors.push(`${file.name}: ${sizeMB.toFixed(1)}MB (máx. 10MB)`);
+            console.warn(`❌ ${file.name}: Muy grande`);
+            return;
+        }
+        
+        validFiles.push(file);
+        console.log(`✅ ${file.name}: Válido`);
+    });
+    
+    if (selectedFiles.length + validFiles.length > MAX_FILES) {
+        errors.push(`Máximo ${MAX_FILES} imágenes (ya tiene ${selectedFiles.length})`);
+        showEvidenciasStatus(errors.join('<br>'), 'error');
+        console.warn(`❌ Límite excedido`);
+        return;
+    }
+    
+    if (errors.length > 0) {
+        showEvidenciasStatus(errors.join('<br>'), 'error');
+        console.warn(`⚠️ ${errors.length} archivo(s) rechazado(s)`);
+    }
+    
+    // iOS: Guardar archivos directamente (NO tocar input.files)
+    validFiles.forEach(file => {
+        selectedFiles.push(file);
+        addFilePreview(file, selectedFiles.length - 1);
+    });
+    
+    if (validFiles.length > 0) {
+        showEvidenciasStatus(`${validFiles.length} imagen(es) agregada(s).`, 'success');
+        console.log(`✅ Total iOS: ${selectedFiles.length}`);
+    }
+}
+
+// Android/Windows: Manejo completo de archivos (CON DataTransfer)
 function handleFileSelection(files) {
     const fileArray = Array.from(files);
     const validFiles = [];
@@ -552,6 +758,7 @@ function handleFileSelection(files) {
     });
     
     updateFileInput();
+    
     if (validFiles.length > 0) {
         showEvidenciasStatus(`${validFiles.length} imagen(es) agregada(s) correctamente.`, 'success');
         console.log(`✅ Total de archivos seleccionados: ${selectedFiles.length}`);
@@ -582,7 +789,9 @@ function addFilePreview(file, index) {
 function removeFile(index) {
     selectedFiles.splice(index, 1);
     updatePreview();
-    updateFileInput();
+    if (!isIOS) {
+        updateFileInput();
+    }
     showEvidenciasStatus(`Imagen removida. Total: ${selectedFiles.length}/${MAX_FILES}`, 'success');
 }
 
@@ -592,11 +801,22 @@ function updatePreview() {
     selectedFiles.forEach((file, index) => addFilePreview(file, index));
 }
 
+// Solo para Android/Windows (iOS NO soporta DataTransfer)
 function updateFileInput() {
-    const input = document.getElementById('evidencias');
-    const dt = new DataTransfer();
-    selectedFiles.forEach(file => dt.items.add(file));
-    input.files = dt.files;
+    if (isIOS) {
+        console.log('🍎 iOS: Saltando updateFileInput (no soportado)');
+        return;
+    }
+    
+    try {
+        const input = document.getElementById('evidencias');
+        const dt = new DataTransfer();
+        selectedFiles.forEach(file => dt.items.add(file));
+        input.files = dt.files;
+    } catch (error) {
+        console.warn('⚠️ Error actualizando input.files:', error);
+        // No es crítico, continuar normal
+    }
 }
 
 function showEvidenciasStatus(message, type) {
@@ -610,7 +830,8 @@ function showEvidenciasStatus(message, type) {
 
 function resetEvidenciasSection() {
     selectedFiles = [];
-    document.getElementById('evidencias').value = '';
+    const input = document.getElementById('evidencias');
+    input.value = '';
     document.getElementById('evidencias-preview').innerHTML = '';
     document.getElementById('evidencias-status').style.display = 'none';
 }
@@ -1534,7 +1755,7 @@ function resetLocationFields() {
     updateLocationStatus('loading', 'Complete la autenticación para obtener ubicación GPS', '');
 }
 
-// ========== TESTING ==========
+// ========== DIAGNÓSTICO ==========
 async function diagnosticarEvidencias() {
     console.log('\n🔍 DIAGNÓSTICO DE EVIDENCIAS');
     console.log('============================\n');
@@ -1616,43 +1837,50 @@ async function diagnosticarEvidencias() {
     }
     
     console.log('\n============================');
-    console.log('Para más ayuda, contacte al administrador');
 }
 
 async function diagnosticComplete() {
     console.log('🔬 DIAGNÓSTICO COMPLETO');
     console.log('======================\n');
     
-    console.log('1. CONFIGURACIÓN:');
+    console.log('1. DISPOSITIVO:');
+    console.log('   - iOS:', isIOS ? '✅' : '❌');
+    console.log('   - Safari:', isSafari ? '✅' : '❌');
+    console.log('   - User Agent:', navigator.userAgent);
+    
+    console.log('\n2. CONFIGURACIÓN:');
     console.log('   - Client ID:', GOOGLE_CLIENT_ID ? '✅' : '❌');
     console.log('   - Script URL:', GOOGLE_SCRIPT_URL ? '✅' : '❌');
+    console.log('   - HTTPS:', location.protocol === 'https:' ? '✅' : '❌');
     
-    console.log('\n2. AUTENTICACIÓN:');
+    console.log('\n3. AUTENTICACIÓN:');
     console.log('   - Usuario autenticado:', isAuthenticated ? '✅' : '❌');
     console.log('   - Consentimiento:', privacyConsent ? '✅' : '❌');
     console.log('   - Google API:', typeof google !== 'undefined' ? '✅' : '❌');
+    console.log('   - localStorage:', safeLocalStorage() ? '✅' : '❌ (modo privado)');
     
-    console.log('\n3. UBICACIÓN:');
+    console.log('\n4. UBICACIÓN:');
     console.log('   - Geolocalización:', navigator.geolocation ? '✅' : '❌');
     console.log('   - Ubicación válida:', locationValid ? '✅' : '❌');
     console.log('   - Precisión actual:', currentLocation ? `${currentLocation.accuracy}m` : 'N/A');
     
-    console.log('\n4. EVIDENCIAS:');
+    console.log('\n5. EVIDENCIAS:');
     console.log('   - Archivos seleccionados:', selectedFiles.length);
-    console.log('   - Tipos permitidos:', ALLOWED_FILE_TYPES.join(', '));
-    console.log('   - Tamaño máximo:', `${MAX_FILE_SIZE/1024/1024}MB`);
+    console.log('   - Drag & Drop:', !isIOS ? '✅ Habilitado' : '❌ Deshabilitado (iOS)');
+    console.log('   - DataTransfer:', !isIOS ? '✅ Disponible' : '❌ No disponible (iOS)');
     
     if (selectedFiles.length > 0) {
-        console.log('\n   Diagnóstico de archivos:');
+        console.log('\n   Analizando archivos...');
         await diagnosticarEvidencias();
     }
     
     console.log('\n======================');
     console.log('FUNCIONES DISPONIBLES:');
-    console.log('- diagnosticarEvidencias() - Analiza archivos seleccionados');
+    console.log('- diagnosticarEvidencias() - Analiza archivos');
+    console.log('- diagnosticComplete() - Diagnóstico completo');
 }
 
-setTimeout(() => {
-    console.log('\n🔍 Para diagnóstico completo: diagnosticComplete()');
-    console.log('Para analizar evidencias: diagnosticarEvidencias()');
-}, 3000);
+// Mensaje de inicio
+console.log('✅ Script cargado correctamente');
+console.log(`📱 Modo: ${isIOS ? 'iOS (compatibilidad especial)' : 'Android/Windows/Desktop (funcionalidad completa)'}`);
+console.log('🔍 Para diagnóstico: diagnosticComplete()');
