@@ -16,18 +16,15 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const PRIVACY_VERSION = '1.0';
 
-// IMPORTANTE: Actualiza con tu nueva URL de Google Apps Script
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyllBO0vTORygvLlbTeRWfNXz1_Dt1khrM2z_BUxbNM6jWqEGYDqaLnd7LJs9Fl9Q9X/exec';
 const GOOGLE_CLIENT_ID = '799841037062-kal4vump3frc2f8d33bnp4clc9amdnng.apps.googleusercontent.com';
 
-// Ubicaciones conocidas de la UAS
 const ubicacionesUAS = [
     { name: "Facultad de Psicología UAS", lat: 24.7993, lng: -107.3950, radius: 100 },
     { name: "CESPSIC - Centro de Servicios Psicológicos", lat: 24.7995, lng: -107.3948, radius: 50 },
     { name: "Universidad Autónoma de Sinaloa - Campus Central", lat: 24.7990, lng: -107.3950, radius: 200 }
 ];
 
-// Inicializar formulario
 document.addEventListener('DOMContentLoaded', function() {
     initializeForm();
     setupEventListeners();
@@ -121,6 +118,7 @@ function rejectPrivacy() {
 }
 
 function requestRevocation() { showRevokeModal(); }
+
 function showRevokeModal() {
     const modal = document.getElementById('revoke-modal');
     modal.style.display = 'flex';
@@ -138,6 +136,7 @@ function handleRevokeModalEscape(e) {
 }
 
 function cancelRevocation() { hideRevokeModal(); }
+
 function authenticateToRevoke() {
     hideRevokeModal();
     authenticationPurpose = 'revoke';
@@ -194,7 +193,6 @@ async function recordPrivacyAction(action) {
 // ========== GOOGLE SIGN-IN ==========
 function initializeForm() {
     const today = new Date();
-    // Obtener fecha local (no UTC)
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
@@ -207,10 +205,9 @@ function initializeForm() {
 
 function updateCurrentTime() {
     const now = new Date();
-    //document.getElementById('hora').value = now.toTimeString().slice(0, 5);
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
-    document.getElementById('hora').value = `${hours}:${minutes}`;
+    document.getElementById('hora').value = `${hours}:${minutes}`;	
 }
 
 function loadGoogleSignInScript() {
@@ -376,8 +373,6 @@ async function handleLoginFlow() {
         updateAuthenticationUI();
         enableForm();
         getCurrentLocation();
-
-        // AGREGAR ESTA LÍNEA:
         updateSubmitButton();
         
         showStatus(`¡Bienvenido ${currentUser.name}! Autenticación exitosa.`, 'success');
@@ -511,26 +506,44 @@ function handleFileSelection(files) {
     const validFiles = [];
     const errors = [];
     
+    console.log(`📁 Procesando ${fileArray.length} archivo(s)...`);
+    
     fileArray.forEach(file => {
+        console.log(`Archivo: ${file.name}, Tipo: ${file.type}, Tamaño: ${(file.size/1024/1024).toFixed(2)}MB`);
+        
+        if (!file.type) {
+            errors.push(`${file.name}: Sin tipo MIME (intente otro formato)`);
+            console.warn(`❌ ${file.name}: No tiene tipo MIME`);
+            return;
+        }
+        
         if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-            errors.push(`${file.name}: Tipo no válido.`);
+            errors.push(`${file.name}: Formato no válido (solo JPG, PNG, WEBP)`);
+            console.warn(`❌ ${file.name}: Tipo ${file.type} no permitido`);
             return;
         }
+        
+        const sizeMB = file.size / 1024 / 1024;
         if (file.size > MAX_FILE_SIZE) {
-            errors.push(`${file.name}: Demasiado grande.`);
+            errors.push(`${file.name}: ${sizeMB.toFixed(1)}MB (máx. 10MB)`);
+            console.warn(`❌ ${file.name}: Demasiado grande (${sizeMB.toFixed(1)}MB)`);
             return;
         }
+        
         validFiles.push(file);
+        console.log(`✅ ${file.name}: Válido`);
     });
     
     if (selectedFiles.length + validFiles.length > MAX_FILES) {
-        errors.push(`Máximo ${MAX_FILES} imágenes.`);
+        errors.push(`Máximo ${MAX_FILES} imágenes (ya tiene ${selectedFiles.length})`);
         showEvidenciasStatus(errors.join('<br>'), 'error');
+        console.warn(`❌ Límite de archivos excedido`);
         return;
     }
     
     if (errors.length > 0) {
         showEvidenciasStatus(errors.join('<br>'), 'error');
+        console.warn(`⚠️ ${errors.length} archivo(s) rechazado(s)`);
     }
     
     validFiles.forEach(file => {
@@ -540,7 +553,8 @@ function handleFileSelection(files) {
     
     updateFileInput();
     if (validFiles.length > 0) {
-        showEvidenciasStatus(`${validFiles.length} imagen(es) agregada(s).`, 'success');
+        showEvidenciasStatus(`${validFiles.length} imagen(es) agregada(s) correctamente.`, 'success');
+        console.log(`✅ Total de archivos seleccionados: ${selectedFiles.length}`);
     }
 }
 
@@ -602,16 +616,13 @@ function resetEvidenciasSection() {
 }
 
 // ========== UPLOAD ==========
-/*
-function generateEstimatedFileId(fileName) {
-    // Esta función genera IDs falsos que no funcionan en Google Drive
-    const timestamp = new Date().getTime();
-    const hash = btoa(fileName + timestamp).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
-    return `EST_${hash}_${timestamp}`;
-}
-*/
 async function uploadEvidencias() {
-    if (selectedFiles.length === 0) return [];
+    if (selectedFiles.length === 0) {
+        console.log('ℹ️ No hay archivos para subir');
+        return [];
+    }
+    
+    console.log(`📤 Iniciando subida de ${selectedFiles.length} archivo(s)...`);
     
     const tipoRegistro = document.getElementById('tipo_registro').value || 'sin_tipo';
     const evidenciasInfo = [];
@@ -625,9 +636,21 @@ async function uploadEvidencias() {
         const fullFileName = `${fileName}.${extension}`;
         
         try {
+            console.log(`📤 [${i+1}/${selectedFiles.length}] Procesando: ${file.name}`);
             showEvidenciasStatus(`Subiendo imagen ${i + 1}/${selectedFiles.length}: ${file.name}`, 'loading');
             
-            const base64Data = await fileToBase64(file);
+            if (!file || !file.type || file.size === 0) {
+                throw new Error('Archivo inválido o corrupto');
+            }
+            
+            let base64Data;
+            try {
+                base64Data = await fileToBase64(file);
+                console.log(`✅ Conversión Base64 exitosa: ${(base64Data.length/1024).toFixed(1)}KB`);
+            } catch (b64Error) {
+                console.error(`❌ Error en conversión Base64:`, b64Error);
+                throw new Error(`Error al procesar la imagen: ${b64Error.message}`);
+            }
             
             const uploadData = {
                 action: 'upload_evidencia',
@@ -639,19 +662,21 @@ async function uploadEvidencias() {
                 timestamp: new Date().toISOString()
             };
             
-            console.log(`Subiendo archivo ${i + 1}:`, fullFileName);
+            console.log(`🚀 Enviando archivo ${i + 1}: ${fullFileName} (${file.type})`);
             
-            // CORREGIDO: Enviar archivo y procesar respuesta correctamente
-            const uploadResult = await sendDataWithFallback(uploadData);
+            const uploadResult = await Promise.race([
+                sendDataWithFallback(uploadData),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout de 30 segundos')), 30000)
+                )
+            ]);
             
-            // Guardar información con nombre de archivo (no URL)
             evidenciasInfo.push({
                 fileName: fullFileName,
                 originalName: file.name,
                 size: file.size,
                 uploadTime: new Date().toISOString(),
                 uploadStatus: 'SUCCESS',
-                // NO incluir URL aquí, solo nombre del archivo
                 url: null
             });
             
@@ -666,13 +691,18 @@ async function uploadEvidencias() {
                 size: file.size,
                 uploadTime: new Date().toISOString(),
                 uploadStatus: 'FAILED',
-                error: error.message
+                error: error.message || 'Error desconocido',
+                errorType: error.name || 'Error'
             });
             
-            showEvidenciasStatus(`⚠️ Error subiendo ${file.name}`, 'warning');
+            showEvidenciasStatus(
+                `⚠️ Error en ${file.name}: ${error.message}`, 
+                'warning'
+            );
+            
+            await new Promise(resolve => setTimeout(resolve, 2000));
         }
         
-        // Pausa entre subidas
         if (i < selectedFiles.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 1500));
         }
@@ -681,179 +711,52 @@ async function uploadEvidencias() {
     const successCount = evidenciasInfo.filter(e => e.uploadStatus === 'SUCCESS').length;
     const failCount = evidenciasInfo.filter(e => e.uploadStatus === 'FAILED').length;
     
+    console.log(`\n📊 RESUMEN DE SUBIDA:`);
+    console.log(`   ✅ Exitosas: ${successCount}`);
+    console.log(`   ❌ Fallidas: ${failCount}`);
+    console.log(`   📁 Total: ${evidenciasInfo.length}`);
+    
+    if (failCount > 0) {
+        console.log(`\n⚠️ ARCHIVOS FALLIDOS:`);
+        evidenciasInfo.filter(e => e.uploadStatus === 'FAILED').forEach(e => {
+            console.log(`   - ${e.originalName}: ${e.error}`);
+        });
+    }
+    
     if (successCount > 0) {
         showEvidenciasStatus(
-            `✅ ${successCount} evidencia(s) subida(s)${failCount > 0 ? ` (${failCount} errores)` : ''}`, 
+            `✅ ${successCount} evidencia(s) subida(s)${failCount > 0 ? ` (${failCount} errores - revise consola)` : ''}`, 
             failCount > 0 ? 'warning' : 'success'
         );
     } else if (failCount > 0) {
-        showEvidenciasStatus(`❌ Error: No se pudo subir ninguna evidencia`, 'error');
+        showEvidenciasStatus(
+            `❌ No se pudo subir ninguna evidencia. Errores: ${evidenciasInfo.map(e => e.error).join(', ')}`, 
+            'error'
+        );
     }
     
     return evidenciasInfo;
 }
 
-// Nueva función para subir una evidencia individual con mejor captura de respuesta
-async function uploadSingleEvidencia(uploadData) {
-    return new Promise((resolve, reject) => {
-        // Crear iframe con id único para poder monitorearlo mejor
-        const iframeId = 'upload_iframe_' + Date.now();
-        const iframe = document.createElement('iframe');
-        iframe.id = iframeId;
-        iframe.style.display = 'none';
-        iframe.name = iframeId;
-        
-        // Crear formulario
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = GOOGLE_SCRIPT_URL;
-        form.target = iframe.name;
-        form.style.display = 'none';
-        
-        // Agregar datos como campos ocultos
-        for (const [key, value] of Object.entries(uploadData)) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = typeof value === 'object' ? JSON.stringify(value) : value;
-            form.appendChild(input);
-        }
-        
-        let resolved = false;
-        
-        // Intentar capturar respuesta del iframe
-        iframe.onload = function() {
-            if (resolved) return;
-            
-            setTimeout(() => {
-                if (resolved) return;
-                
-                try {
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    let responseText = '';
-                    
-                    if (iframeDoc && iframeDoc.body) {
-                        responseText = iframeDoc.body.textContent || iframeDoc.body.innerText || '';
-                    }
-                    
-                    console.log(`Respuesta para ${uploadData.fileName}:`, responseText);
-                    
-                    // Intentar parsear JSON
-                    let responseData = null;
-                    try {
-                        responseData = JSON.parse(responseText);
-                        if (responseData.success && responseData.file_id) {
-                            console.log('✅ Respuesta JSON válida obtenida:', responseData.file_url);
-                            resolved = true;
-                            cleanup();
-                            resolve(responseData);
-                            return;
-                        }
-                    } catch (parseError) {
-                        console.log('No se pudo parsear respuesta como JSON');
-                    }
-                    
-                    // Si llegamos aquí, asumir que se subió pero no podemos obtener la URL
-                    resolved = true;
-                    cleanup();
-                    resolve({
-                        success: true,
-                        message: 'Archivo subido, URL no disponible',
-                        file_id: null,
-                        file_url: 'URL_PENDIENTE_DE_PROCESAMIENTO'
-                    });
-                    
-                } catch (error) {
-                    console.log('Error leyendo iframe, asumiendo subida exitosa');
-                    if (!resolved) {
-                        resolved = true;
-                        cleanup();
-                        resolve({
-                            success: true,
-                            message: 'Archivo subido, respuesta no accesible',
-                            file_id: null,
-                            file_url: 'URL_PROCESADA_EN_BACKEND'
-                        });
-                    }
-                }
-            }, 3000); // Esperar 3 segundos para que se procese
-        };
-        
-        // Timeout de seguridad
-        const timeoutId = setTimeout(() => {
-            if (!resolved) {
-                console.log('Timeout en subida, asumiendo éxito');
-                resolved = true;
-                cleanup();
-                resolve({
-                    success: true,
-                    message: 'Archivo enviado (timeout)',
-                    file_id: null,
-                    file_url: 'URL_TIMEOUT_PROCESAMIENTO'
-                });
-            }
-        }, 10000); // 10 segundos
-        
-        function cleanup() {
-            try {
-                clearTimeout(timeoutId);
-                if (document.body.contains(iframe)) {
-                    document.body.removeChild(iframe);
-                }
-                if (document.body.contains(form)) {
-                    document.body.removeChild(form);
-                }
-            } catch (e) {
-                console.log('Error en cleanup:', e);
-            }
-        }
-        
-        // Error del iframe
-        iframe.onerror = function() {
-            if (!resolved) {
-                console.log('Error en iframe, pero archivo posiblemente subido');
-                resolved = true;
-                cleanup();
-                resolve({
-                    success: true,
-                    message: 'Archivo enviado (error iframe)',
-                    file_id: null,
-                    file_url: 'URL_ERROR_IFRAME_PROCESAMIENTO'
-                });
-            }
-        };
-        
-        // Agregar al DOM y enviar
-        document.body.appendChild(iframe);
-        document.body.appendChild(form);
-        form.submit();
-    });
-}
-
 async function sendDataWithFallback(data) {
     console.log('Enviando datos con método sin CORS...');
     
-    // MÉTODO 1: Form submission directa (NO requiere CORS)
     return new Promise((resolve, reject) => {
-        // Crear iframe oculto para capturar respuesta
         const iframe = document.createElement('iframe');
         iframe.style.display = 'none';
         iframe.name = 'response_frame_' + Date.now();
         
-        // Crear formulario
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = GOOGLE_SCRIPT_URL;
         form.target = iframe.name;
         form.style.display = 'none';
         
-        // Agregar todos los datos como campos ocultos
         for (const [key, value] of Object.entries(data)) {
             const input = document.createElement('input');
             input.type = 'hidden';
             input.name = key;
             
-            // Manejar objetos y arrays
             if (typeof value === 'object' && value !== null) {
                 input.value = JSON.stringify(value);
             } else {
@@ -863,28 +766,23 @@ async function sendDataWithFallback(data) {
             form.appendChild(input);
         }
         
-        // Manejar respuesta del iframe
         iframe.onload = function() {
             try {
-                // Esperar un poco para que el contenido se cargue
                 setTimeout(() => {
                     try {
                         const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                         let responseText = '';
                         
-                        // Intentar obtener el contenido
                         if (iframeDoc && iframeDoc.body) {
                             responseText = iframeDoc.body.textContent || iframeDoc.body.innerText || '';
                         }
                         
                         console.log('Respuesta del iframe:', responseText);
                         
-                        // Intentar parsear como JSON
                         let responseData;
                         try {
                             responseData = JSON.parse(responseText);
                         } catch (parseError) {
-                            // Si no es JSON válido, asumir éxito
                             responseData = {
                                 success: true,
                                 message: 'Datos enviados correctamente',
@@ -893,7 +791,6 @@ async function sendDataWithFallback(data) {
                             };
                         }
                         
-                        // Limpiar elementos del DOM
                         cleanup();
                         resolve(responseData);
                         
@@ -906,7 +803,7 @@ async function sendDataWithFallback(data) {
                             method: 'form_submission_assumed'
                         });
                     }
-                }, 2000); // Esperar 2 segundos
+                }, 2000);
                 
             } catch (error) {
                 console.log('Error procesando iframe, asumiendo éxito');
@@ -919,7 +816,6 @@ async function sendDataWithFallback(data) {
             }
         };
         
-        // Error del iframe
         iframe.onerror = function(error) {
             console.log('Error en iframe, pero posiblemente datos enviados:', error);
             cleanup();
@@ -930,7 +826,6 @@ async function sendDataWithFallback(data) {
             });
         };
         
-        // Timeout de seguridad
         const timeoutId = setTimeout(() => {
             console.log('Timeout en envío, asumiendo éxito');
             cleanup();
@@ -939,7 +834,7 @@ async function sendDataWithFallback(data) {
                 message: 'Datos enviados (timeout)',
                 method: 'form_submission_timeout'
             });
-        }, 15000); // 15 segundos
+        }, 15000);
         
         function cleanup() {
             try {
@@ -955,81 +850,10 @@ async function sendDataWithFallback(data) {
             }
         }
         
-        // Agregar elementos al DOM y enviar
         document.body.appendChild(iframe);
         document.body.appendChild(form);
         
         console.log('Enviando formulario...');
-        form.submit();
-    });
-}
-
-function submitWithFormHidden(data) {
-    return new Promise((resolve, reject) => {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.name = 'submitFrame_' + Date.now();
-        
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = GOOGLE_SCRIPT_URL;
-        form.target = iframe.name;
-        form.style.display = 'none';
-        
-        for (const [key, value] of Object.entries(data)) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = typeof value === 'object' ? JSON.stringify(value) : value;
-            form.appendChild(input);
-        }
-        
-        iframe.onload = function() {
-            try {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                const responseText = iframeDoc.body.textContent;
-                
-                let responseData;
-                try {
-                    responseData = JSON.parse(responseText);
-                } catch (parseError) {
-                    responseData = {
-                        success: true,
-                        message: 'Formulario enviado correctamente',
-                        method: 'form_submission'
-                    };
-                }
-                
-                document.body.removeChild(iframe);
-                document.body.removeChild(form);
-                resolve(responseData);
-            } catch (error) {
-                document.body.removeChild(iframe);
-                document.body.removeChild(form);
-                resolve({
-                    success: true,
-                    message: 'Formulario enviado (método form)',
-                    method: 'form_submission_assumed'
-                });
-            }
-        };
-        
-        iframe.onerror = function() {
-            document.body.removeChild(iframe);
-            document.body.removeChild(form);
-            reject(new Error('Error en envío con form'));
-        };
-        
-        setTimeout(() => {
-            if (document.body.contains(iframe)) {
-                document.body.removeChild(iframe);
-                document.body.removeChild(form);
-                reject(new Error('Timeout'));
-            }
-        }, 30000);
-        
-        document.body.appendChild(iframe);
-        document.body.appendChild(form);
         form.submit();
     });
 }
@@ -1065,10 +889,68 @@ function generateStudentFolderName() {
 
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
+        if (!file) {
+            reject(new Error('Archivo no válido'));
+            return;
+        }
+        
+        if (!file.type) {
+            reject(new Error('Archivo sin tipo MIME'));
+            return;
+        }
+        
+        if (file.size === 0) {
+            reject(new Error('Archivo vacío (0 bytes)'));
+            return;
+        }
+        
+        if (file.size > MAX_FILE_SIZE) {
+            reject(new Error(`Archivo muy grande: ${(file.size/1024/1024).toFixed(1)}MB`));
+            return;
+        }
+        
+        console.log(`🔄 Convirtiendo ${file.name} a Base64...`);
+        
         const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = error => reject(error);
+        
+        reader.onload = () => {
+            try {
+                const result = reader.result;
+                if (!result || typeof result !== 'string') {
+                    reject(new Error('Error: resultado de lectura inválido'));
+                    return;
+                }
+                
+                const base64 = result.split(',')[1];
+                if (!base64 || base64.length === 0) {
+                    reject(new Error('Error: conversión Base64 falló'));
+                    return;
+                }
+                
+                console.log(`✅ Base64 generado: ${(base64.length/1024).toFixed(1)}KB`);
+                resolve(base64);
+            } catch (error) {
+                console.error('❌ Error procesando Base64:', error);
+                reject(new Error(`Error al procesar: ${error.message}`));
+            }
+        };
+        
+        reader.onerror = (error) => {
+            console.error('❌ Error leyendo archivo:', error);
+            reject(new Error(`Error al leer archivo: ${file.name}`));
+        };
+        
+        reader.onabort = () => {
+            console.error('❌ Lectura abortada');
+            reject(new Error('Lectura de archivo abortada'));
+        };
+        
+        try {
+            reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('❌ Error iniciando lectura:', error);
+            reject(new Error(`No se pudo leer el archivo: ${error.message}`));
+        }
     });
 }
 
@@ -1076,7 +958,6 @@ function fileToBase64(file) {
 async function handleSubmit(e) {
     e.preventDefault();
     
-    // Verificaciones iniciales (mantener las mismas)
     if (!isAuthenticated || !currentUser) {
         showStatus('Debe autenticarse con Google.', 'error');
         return;
@@ -1104,19 +985,45 @@ async function handleSubmit(e) {
     submitBtn.textContent = 'Guardando...';
     
     try {
+        console.log('\n🚀 INICIANDO ENVÍO DE FORMULARIO');
+        console.log(`📁 Archivos seleccionados: ${selectedFiles.length}`);
+        
         let evidenciasUrls = [];
         if (selectedFiles.length > 0) {
+            console.log('\n📤 FASE 1: SUBIENDO EVIDENCIAS...');
             showStatus('Subiendo evidencias...', 'success');
             evidenciasUrls = await uploadEvidencias();
             
-            // Solo fallar si hay archivos seleccionados pero ninguno se procesó
-            const processedUploads = evidenciasUrls.filter(e => e.uploadStatus !== 'FAILED');
-            if (selectedFiles.length > 0 && processedUploads.length === 0) {
-                throw new Error('No se pudo procesar ninguna evidencia.');
+            const successUploads = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS');
+            const failedUploads = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED');
+            
+            console.log(`📊 Resultado: ${successUploads.length} éxito, ${failedUploads.length} fallos`);
+            
+            if (selectedFiles.length > 0 && successUploads.length === 0) {
+                const errorDetails = failedUploads.map(e => `• ${e.originalName}: ${e.error}`).join('\n');
+                
+                console.error('\n❌ TODAS LAS EVIDENCIAS FALLARON:');
+                console.error(errorDetails);
+                
+                const userDecision = confirm(
+                    `⚠️ NO se pudo subir ninguna evidencia:\n\n${errorDetails}\n\n` +
+                    `¿Desea continuar registrando la asistencia SIN evidencias?\n\n` +
+                    `• Clic en "Aceptar" = Continuar sin evidencias\n` +
+                    `• Clic en "Cancelar" = Reintentar o corregir archivos`
+                );
+                
+                if (!userDecision) {
+                    throw new Error('Registro cancelado. Por favor revise los archivos e intente nuevamente.');
+                }
+                
+                console.log('⚠️ Usuario decidió continuar sin evidencias');
+            } else if (failedUploads.length > 0) {
+                console.warn(`⚠️ ${failedUploads.length} evidencia(s) no se subieron, pero se continuará con ${successUploads.length}`);
             }
         }
         
-        // Preparar datos del formulario
+        console.log('\n📝 FASE 2: PREPARANDO DATOS DEL FORMULARIO...');
+        
         const formData = new FormData(e.target);
         const data = {};
         
@@ -1142,23 +1049,19 @@ async function handleSubmit(e) {
             }
         }
         
-        // CORREGIDO: Procesar evidencias solo con nombres de archivos
-        data.evidencias_urls = evidenciasUrls;
-        data.total_evidencias = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS').length;
-        data.evidencias_failed = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED').length;
+        const successUploads = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS');
         
-        // CORREGIDO: Solo nombres de archivos, NO URLs
-        const evidenciasNombres = evidenciasUrls
-            .filter(e => e.uploadStatus === 'SUCCESS')
+        data.evidencias_urls = evidenciasUrls;
+        data.total_evidencias = successUploads.length;
+        data.evidencias_failed = evidenciasUrls.length - successUploads.length;
+        
+        const evidenciasNombres = successUploads
             .map(e => e.fileName)
             .join(', ');
         
         data.evidencias_nombres = evidenciasNombres;
-        
-        // CORREGIDO: Agregar carpeta de evidencias
         data.carpeta_evidencias = generateStudentFolderName();
         
-        // Agregar campos críticos (mantener la misma lógica)
         data.modalidad = document.getElementById('modalidad').value;
         data.ubicacion_detectada = document.getElementById('ubicacion_detectada').value;
         data.direccion_completa = document.getElementById('direccion_completa').value;
@@ -1172,18 +1075,24 @@ async function handleSubmit(e) {
             throw new Error('El campo Modalidad es requerido');
         }
         
-        console.log('📤 Enviando formulario principal...');
+        console.log('\n📤 FASE 3: ENVIANDO FORMULARIO PRINCIPAL...');
+        console.log(`   Usuario: ${currentUser.name}`);
+        console.log(`   Modalidad: ${data.modalidad}`);
+        console.log(`   Evidencias exitosas: ${data.total_evidencias}`);
+        console.log(`   Evidencias fallidas: ${data.evidencias_failed}`);
         
-        // Usar método sin CORS para formulario principal
         const responseData = await sendDataWithFallback(data);
         
-        // Asumir éxito si se completó el envío
+        console.log('✅ FORMULARIO ENVIADO EXITOSAMENTE');
+        
         if (responseData) {
             const evidenciasInfo = data.total_evidencias > 0 
-                ? `\nEvidencias: ${data.total_evidencias} imagen(es)${data.evidencias_failed > 0 ? ` (${data.evidencias_failed} errores)` : ''}`
-                : '';
+                ? `\n✅ Evidencias: ${data.total_evidencias} imagen(es)${data.evidencias_failed > 0 ? ` (${data.evidencias_failed} no se pudieron subir)` : ''}`
+                : selectedFiles.length > 0 
+                    ? `\n⚠️ Evidencias: No se pudo subir ninguna (registrado sin evidencias)`
+                    : '';
             
-            showStatus(`Asistencia registrada exitosamente!
+            showStatus(`✅ ¡Asistencia registrada exitosamente!
             Usuario: ${currentUser.name}
             Modalidad: ${data.modalidad}
             Ubicación: ${data.ubicacion_detectada}${evidenciasInfo}`, 'success');
@@ -1193,7 +1102,6 @@ async function handleSubmit(e) {
                     resetFormOnly();
                     getCurrentLocation();
                 } else {
-                    // CORREGIDO: Usar signOut() en lugar de resetear manualmente
                     signOut();
                 }
                 hideStatus();
@@ -1203,12 +1111,16 @@ async function handleSubmit(e) {
         }
         
     } catch (error) {
-        console.error('Error al enviar:', error);
-        showStatus('Error al guardar: ' + error.message, 'error');
+        console.error('\n❌ ERROR EN ENVÍO DE FORMULARIO:', error);
+        showStatus('❌ Error al guardar: ' + error.message, 'error');
+        
+        submitBtn.disabled = false;
+        submitBtn.textContent = '📋 Registrar Asistencia';
+        submitBtn.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
+        
         setTimeout(() => {
-            updateSubmitButton();
             hideStatus();
-        }, 5000);
+        }, 8000);
     }
 }
 
@@ -1223,7 +1135,6 @@ function resetFormOnly() {
     document.getElementById('evidencias_section').style.display = 'none';
     resetEvidenciasSection();
     
-    // Resetear campos de ubicación
     document.getElementById('ubicacion_detectada').value = 'Obteniendo ubicación...';
     document.getElementById('direccion_completa').value = 'Consultando dirección...';
     document.getElementById('precision_gps').value = 'Calculando...';
@@ -1234,16 +1145,9 @@ function resetFormOnly() {
     
     document.getElementById('retry_location_btn').style.display = 'none';
     
-    // MANTENER la autenticación y privacidad - NO resetear estos valores
     document.getElementById('email').value = currentUser.email;
     document.getElementById('google_user_id').value = currentUser.id;
     
-    // CRÍTICO: NO TOCAR ESTAS VARIABLES:
-    // privacyConsent debe seguir siendo true
-    // isAuthenticated debe seguir siendo true  
-    // currentUser debe mantenerse
-    
-    // SOLO resetear variables de ubicación
     locationValid = false;
     locationAttempts = 0;
     updateLocationStatus('loading', 'Obteniendo nueva ubicación GPS...', '');
@@ -1493,7 +1397,7 @@ function getCurrentLocation() {
 
 function updateLocationStatus(type, message, description) {
     const statusDiv = document.getElementById('location_status_display');
-    const icons = { loading: '🌍', success: '✅', warning: '⚠️', error: '❌' };
+    const icons = { loading: '🌐', success: '✅', warning: '⚠️', error: '❌' };
     
     statusDiv.className = `location-status ${type}`;
     statusDiv.innerHTML = `${icons[type]} <strong>${message}</strong>${description ? '<br>' + description : ''}`;
@@ -1631,87 +1535,88 @@ function resetLocationFields() {
 }
 
 // ========== TESTING ==========
-async function testNewScriptUrl() {
-    console.log('🔍 Probando nueva estrategia sin CORS...');
-    console.log('URL:', GOOGLE_SCRIPT_URL);
+async function diagnosticarEvidencias() {
+    console.log('\n🔍 DIAGNÓSTICO DE EVIDENCIAS');
+    console.log('============================\n');
     
-    // Test 1: Verificar que la URL responda directamente
-    console.log('\n📋 PASO 1: Verificar URL directamente');
-    console.log('Abre esta URL en una nueva pestaña:');
-    console.log(GOOGLE_SCRIPT_URL);
+    console.log('1. ARCHIVOS SELECCIONADOS:');
+    console.log(`   Total: ${selectedFiles.length}`);
     
-    // Test 2: Probar método sin CORS
-    console.log('\n🔄 PASO 2: Probando envío sin CORS...');
+    if (selectedFiles.length === 0) {
+        console.log('   ⚠️ No hay archivos seleccionados');
+        return;
+    }
     
-    try {
-        const testData = {
-            action: 'test',
-            timestamp: new Date().toISOString(),
-            test_message: 'Probando método sin CORS',
-            user_agent: navigator.userAgent
-        };
+    console.log('\n2. VALIDACIÓN DE CADA ARCHIVO:');
+    selectedFiles.forEach((file, index) => {
+        console.log(`\n   Archivo ${index + 1}:`);
+        console.log(`   - Nombre: ${file.name}`);
+        console.log(`   - Tipo: ${file.type || 'SIN TIPO MIME ❌'}`);
+        console.log(`   - Tamaño: ${(file.size/1024/1024).toFixed(2)}MB`);
         
-        const result = await sendDataWithFallback(testData);
-        console.log('✅ Resultado del test:', result);
+        const validaciones = [];
         
-        if (result.success) {
-            console.log('✅ ¡El método sin CORS funciona!');
+        if (!file.type) {
+            validaciones.push('❌ Sin tipo MIME - RECHAZADO');
+        } else if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+            validaciones.push(`❌ Tipo ${file.type} no permitido - RECHAZADO`);
         } else {
-            console.log('⚠️ Respuesta recibida pero con errores:', result.message);
+            validaciones.push('✅ Tipo válido');
         }
         
-        return result;
-        
-    } catch (error) {
-        console.log('❌ Error en test sin CORS:', error);
-        return { success: false, error: error.message };
-    }
-}
-
-async function testEvidenciaUploadSimple() {
-    console.log('🔍 Probando subida de evidencia...');
-    
-    const testImageBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-    
-    const testData = {
-        action: 'upload_evidencia',
-        fileName: 'test_image.png',
-        fileData: testImageBase64,
-        mimeType: 'image/png',
-        studentFolder: 'Test_Student',
-        userEmail: 'test@example.com',
-        timestamp: new Date().toISOString()
-    };
-    
-    try {
-        const responseData = await sendDataWithFallback(testData);
-        
-        if (responseData && responseData.success) {
-            console.log('✅ Subida exitosa!');
-            console.log('URL:', responseData.file_url);
-            return responseData;
+        if (file.size === 0) {
+            validaciones.push('❌ Archivo vacío - RECHAZADO');
+        } else if (file.size > MAX_FILE_SIZE) {
+            validaciones.push(`❌ Demasiado grande (>10MB) - RECHAZADO`);
         } else {
-            console.log('❌ Error:', responseData.message);
-            return responseData;
+            validaciones.push('✅ Tamaño válido');
         }
+        
+        validaciones.forEach(v => console.log(`   ${v}`));
+    });
+    
+    console.log('\n3. PRUEBA DE CONVERSIÓN BASE64:');
+    try {
+        const testFile = selectedFiles[0];
+        console.log(`   Probando con: ${testFile.name}`);
+        
+        const base64 = await fileToBase64(testFile);
+        console.log(`   ✅ Conversión exitosa: ${(base64.length/1024).toFixed(1)}KB en Base64`);
     } catch (error) {
-        console.error('❌ Error en test:', error);
-        return { success: false, error: error.message };
+        console.log(`   ❌ Error en conversión: ${error.message}`);
     }
-}
-
-async function runAllTests() {
-    console.log('🚀 Ejecutando todos los tests...\n');
     
-    const corsResult = await testNewScriptUrl();
+    console.log('\n4. CONFIGURACIÓN:');
+    console.log(`   - Tipos permitidos: ${ALLOWED_FILE_TYPES.join(', ')}`);
+    console.log(`   - Tamaño máximo: ${MAX_FILE_SIZE/1024/1024}MB`);
+    console.log(`   - Máximo archivos: ${MAX_FILES}`);
     
-    if (corsResult) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const evidenciaResult = await testEvidenciaUploadSimple();
-        return { cors: corsResult, evidencia: evidenciaResult };
-    } else {
-        return { cors: { success: false }, evidencia: { success: false, error: 'CORS failed' } };
+    console.log('\n5. RECOMENDACIONES:');
+    const invalidFiles = selectedFiles.filter(f => !f.type || !ALLOWED_FILE_TYPES.includes(f.type));
+    const largeFiles = selectedFiles.filter(f => f.size > MAX_FILE_SIZE);
+    
+    if (invalidFiles.length > 0) {
+        console.log('   ⚠️ Archivos con formato inválido:');
+        invalidFiles.forEach(f => {
+            console.log(`      - ${f.name}: ${f.type || 'sin tipo'}`);
+            console.log(`        → Convierta a JPG, PNG o WEBP`);
+        });
     }
+    
+    if (largeFiles.length > 0) {
+        console.log('   ⚠️ Archivos muy grandes:');
+        largeFiles.forEach(f => {
+            console.log(`      - ${f.name}: ${(f.size/1024/1024).toFixed(2)}MB`);
+            console.log(`        → Reduzca la calidad o resolución`);
+        });
+    }
+    
+    if (invalidFiles.length === 0 && largeFiles.length === 0) {
+        console.log('   ✅ Todos los archivos parecen válidos');
+    }
+    
+    console.log('\n============================');
+    console.log('Para más ayuda, contacte al administrador');
 }
 
 async function diagnosticComplete() {
@@ -1732,22 +1637,22 @@ async function diagnosticComplete() {
     console.log('   - Ubicación válida:', locationValid ? '✅' : '❌');
     console.log('   - Precisión actual:', currentLocation ? `${currentLocation.accuracy}m` : 'N/A');
     
-    console.log('\n4. CONECTIVIDAD:');
-    try {
-        await testNewScriptUrl();
-    } catch (error) {
-        console.log('   - Error:', error.message);
+    console.log('\n4. EVIDENCIAS:');
+    console.log('   - Archivos seleccionados:', selectedFiles.length);
+    console.log('   - Tipos permitidos:', ALLOWED_FILE_TYPES.join(', '));
+    console.log('   - Tamaño máximo:', `${MAX_FILE_SIZE/1024/1024}MB`);
+    
+    if (selectedFiles.length > 0) {
+        console.log('\n   Diagnóstico de archivos:');
+        await diagnosticarEvidencias();
     }
     
     console.log('\n======================');
-    console.log('Para pruebas específicas:');
-    console.log('- testNewScriptUrl()');
-    console.log('- testEvidenciaUploadSimple()');
-    console.log('- runAllTests()');
+    console.log('FUNCIONES DISPONIBLES:');
+    console.log('- diagnosticarEvidencias() - Analiza archivos seleccionados');
 }
 
-// Auto-ejecutar diagnóstico
 setTimeout(() => {
     console.log('\n🔍 Para diagnóstico completo: diagnosticComplete()');
-    console.log('Para prueba rápida: testNewScriptUrl()');
+    console.log('Para analizar evidencias: diagnosticarEvidencias()');
 }, 3000);
