@@ -3,7 +3,14 @@ const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-console.log(`📱 Dispositivo: ${isIOS ? 'iOS' : 'Otro'} | Navegador: ${isSafari ? 'Safari' : 'Otro'}`);
+// Detectar si es un ordenador de escritorio/laptop
+const isDesktop = detectDesktop();
+const deviceType = getDeviceType();
+
+console.log(`📱 Tipo dispositivo: ${deviceType}`);
+console.log(`💻 Es Desktop: ${isDesktop ? 'Sí' : 'No'}`);
+console.log(`📱 Es iOS: ${isIOS ? 'Sí' : 'No'}`);
+console.log(`🌐 Navegador: ${isSafari ? 'Safari' : 'Otro'}`);
 
 // Variables globales
 let currentLocation = null;
@@ -17,7 +24,9 @@ let authenticationPurpose = 'login';
 let privacyConsent = false;
 
 const MAX_LOCATION_ATTEMPTS = 3;
-const REQUIRED_ACCURACY = 50;
+// Precisión ajustada según tipo de dispositivo
+const REQUIRED_ACCURACY = isDesktop ? 1000 : 50; // 1000m para desktop, 50m para móviles
+const REQUIRED_ACCURACY_OPTIMAL = isDesktop ? 300 : 30; // Precisión óptima
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -32,10 +41,73 @@ const ubicacionesUAS = [
     { name: "Universidad Autónoma de Sinaloa - Campus Central", lat: 24.7990, lng: -107.3950, radius: 200 }
 ];
 
+// ========== FUNCIONES DE DETECCIÓN DE DISPOSITIVO ==========
+function detectDesktop() {
+    const ua = navigator.userAgent.toLowerCase();
+    
+    // Detectar sistemas operativos de escritorio
+    const isWindows = /windows nt/.test(ua);
+    const isMacOS = /macintosh|mac os x/.test(ua) && navigator.maxTouchPoints <= 1;
+    const isLinux = /linux/.test(ua) && !/android/.test(ua);
+    
+    // Detectar si NO es móvil
+    const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
+    
+    // Es desktop si tiene OS de escritorio Y no es móvil
+    return (isWindows || isMacOS || isLinux) && !isMobile;
+}
+
+function getDeviceType() {
+    const ua = navigator.userAgent.toLowerCase();
+    
+    if (/android/.test(ua)) return 'Android';
+    if (/iphone|ipod/.test(ua)) return 'iPhone';
+    if (/ipad/.test(ua)) return 'iPad';
+    if (/windows phone/.test(ua)) return 'Windows Phone';
+    
+    if (/windows nt/.test(ua)) return 'Windows Desktop';
+    if (/macintosh|mac os x/.test(ua) && navigator.maxTouchPoints <= 1) return 'macOS Desktop';
+    if (/linux/.test(ua) && !/android/.test(ua)) return 'Linux Desktop';
+    
+    if (navigator.maxTouchPoints > 0) return 'Tablet/Touch Device';
+    
+    return 'Desktop/Laptop';
+}
+
+function getDeviceInfo() {
+    return {
+        type: deviceType,
+        isDesktop: isDesktop,
+        isMobile: !isDesktop,
+        isIOS: isIOS,
+        isSafari: isSafari,
+        userAgent: navigator.userAgent,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height,
+        touchPoints: navigator.maxTouchPoints || 0,
+        requiredAccuracy: REQUIRED_ACCURACY,
+        optimalAccuracy: REQUIRED_ACCURACY_OPTIMAL
+    };
+}
+
 // Inicializar aplicación
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== INFORMACIÓN DEL DISPOSITIVO ===');
+    console.log('Tipo:', deviceType);
+    console.log('Es Desktop:', isDesktop);
+    console.log('Precisión requerida:', REQUIRED_ACCURACY + 'm');
+    console.log('Precisión óptima:', REQUIRED_ACCURACY_OPTIMAL + 'm');
+    
+    if (isDesktop) {
+        console.log('⚠️ MODO DESKTOP ACTIVADO');
+        console.log('   Los ordenadores no tienen GPS integrado.');
+        console.log('   La ubicación se obtiene por IP/WiFi (menor precisión).');
+        console.log('   Precisión aceptada: hasta ' + REQUIRED_ACCURACY + 'm');
+        showDesktopWarning();
+    }
+    
     if (isIOS) {
-        console.log('🍎 Modo iOS activado - Aplicando compatibilidad especial');
+        console.log('🎯 Modo iOS activado - Aplicando compatibilidad especial');
         checkHTTPS();
     }
     
@@ -53,6 +125,35 @@ function checkHTTPS() {
         console.warn('⚠️ iOS requiere HTTPS para geolocalización');
         showStatus('⚠️ Se recomienda usar HTTPS para mejor funcionalidad en iOS', 'warning');
         setTimeout(() => hideStatus(), 5000);
+    }
+}
+
+// ========== ADVERTENCIA PARA DESKTOP ==========
+function showDesktopWarning() {
+    const authSection = document.getElementById('auth-section');
+    
+    // Crear advertencia si no existe
+    let desktopWarning = document.getElementById('desktop-warning');
+    if (!desktopWarning) {
+        desktopWarning = document.createElement('div');
+        desktopWarning.id = 'desktop-warning';
+        desktopWarning.style.cssText = `
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.6;
+        `;
+        desktopWarning.innerHTML = `
+            <strong>💻 Dispositivo Desktop Detectado (${deviceType})</strong><br>
+            Los ordenadores no tienen GPS integrado y usan ubicación por IP/WiFi.<br>
+            <strong>Precisión esperada:</strong> 100-1000 metros (vs 5-50m en móviles)<br>
+            ℹ️ El sistema aceptará precisiones de hasta ${REQUIRED_ACCURACY} metros.
+        `;
+        authSection.appendChild(desktopWarning);
     }
 }
 
@@ -616,7 +717,7 @@ function setupEvidenciasHandlers() {
     
     if (isIOS) {
         // iOS: Evento simple, sin drag & drop
-        console.log('🍎 iOS: Configurando manejo simple de archivos');
+        console.log('🎯 iOS: Configurando manejo simple de archivos');
         evidenciasInput.addEventListener('change', function(e) {
             handleIOSFileSelection(e.target.files);
         });
@@ -712,7 +813,7 @@ function handleFileSelection(files) {
     const validFiles = [];
     const errors = [];
     
-    console.log(`📁 Procesando ${fileArray.length} archivo(s)...`);
+    console.log(`🔍 Procesando ${fileArray.length} archivo(s)...`);
     
     fileArray.forEach(file => {
         console.log(`Archivo: ${file.name}, Tipo: ${file.type}, Tamaño: ${(file.size/1024/1024).toFixed(2)}MB`);
@@ -804,7 +905,7 @@ function updatePreview() {
 // Solo para Android/Windows (iOS NO soporta DataTransfer)
 function updateFileInput() {
     if (isIOS) {
-        console.log('🍎 iOS: Saltando updateFileInput (no soportado)');
+        console.log('🎯 iOS: Saltando updateFileInput (no soportado)');
         return;
     }
     
@@ -1130,7 +1231,7 @@ function fileToBase64(file) {
             return;
         }
         
-        console.log(`🔄 Convirtiendo ${file.name} a Base64...`);
+        console.log(`📄 Convirtiendo ${file.name} a Base64...`);
         
         const reader = new FileReader();
         
@@ -1190,7 +1291,8 @@ async function handleSubmit(e) {
     }
     
     if (currentLocation.accuracy > REQUIRED_ACCURACY) {
-        showStatus(`Precisión GPS insuficiente: ${Math.round(currentLocation.accuracy)}m > ${REQUIRED_ACCURACY}m`, 'error');
+        const deviceTypeText = isDesktop ? 'Desktop/Laptop' : 'Móvil';
+        showStatus(`Precisión GPS insuficiente: ${Math.round(currentLocation.accuracy)}m > ${REQUIRED_ACCURACY}m (${deviceTypeText})`, 'error');
         return;
     }
     
@@ -1207,6 +1309,9 @@ async function handleSubmit(e) {
     
     try {
         console.log('\n🚀 INICIANDO ENVÍO DE FORMULARIO');
+        console.log(`📱 Tipo dispositivo: ${deviceType}`);
+        console.log(`💻 Es Desktop: ${isDesktop}`);
+        console.log(`📍 Precisión GPS: ${Math.round(currentLocation.accuracy)}m`);
         console.log(`📁 Archivos seleccionados: ${selectedFiles.length}`);
         
         let evidenciasUrls = [];
@@ -1292,13 +1397,24 @@ async function handleSubmit(e) {
         data.authenticated_user_name = currentUser.name;
         data.authentication_timestamp = new Date().toISOString();
         
+        // ===== NUEVO: Información del dispositivo =====
+        data.device_type = deviceType;
+        data.is_desktop = isDesktop;
+        data.is_mobile = !isDesktop;
+        data.gps_method = isDesktop ? 'IP/WiFi' : 'GPS';
+        data.required_accuracy = REQUIRED_ACCURACY;
+        data.device_info = JSON.stringify(getDeviceInfo());
+        
         if (!data.modalidad || data.modalidad === '') {
             throw new Error('El campo Modalidad es requerido');
         }
         
         console.log('\n📤 FASE 3: ENVIANDO FORMULARIO PRINCIPAL...');
         console.log(`   Usuario: ${currentUser.name}`);
+        console.log(`   Dispositivo: ${deviceType}`);
         console.log(`   Modalidad: ${data.modalidad}`);
+        console.log(`   Método GPS: ${data.gps_method}`);
+        console.log(`   Precisión: ${data.precision_gps_metros}m`);
         console.log(`   Evidencias exitosas: ${data.total_evidencias}`);
         console.log(`   Evidencias fallidas: ${data.evidencias_failed}`);
         
@@ -1315,8 +1431,10 @@ async function handleSubmit(e) {
             
             showStatus(`✅ ¡Asistencia registrada exitosamente!
             Usuario: ${currentUser.name}
+            Dispositivo: ${deviceType}
             Modalidad: ${data.modalidad}
-            Ubicación: ${data.ubicacion_detectada}${evidenciasInfo}`, 'success');
+            Ubicación: ${data.ubicacion_detectada}
+            Precisión: ${data.precision_gps_metros}m${evidenciasInfo}`, 'success');
             
             setTimeout(() => {
                 if (confirm('¿Desea registrar otra asistencia?')) {
@@ -1541,7 +1659,12 @@ function getCurrentLocation() {
     }
 
     locationAttempts++;
-    updateLocationStatus('loading', `Obteniendo ubicación GPS... (${locationAttempts}/${MAX_LOCATION_ATTEMPTS})`, '');
+    
+    const statusMsg = isDesktop 
+        ? `Obteniendo ubicación por IP/WiFi... (${locationAttempts}/${MAX_LOCATION_ATTEMPTS})` 
+        : `Obteniendo ubicación GPS... (${locationAttempts}/${MAX_LOCATION_ATTEMPTS})`;
+    
+    updateLocationStatus('loading', statusMsg, '');
 
     const options = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
     
@@ -1556,22 +1679,40 @@ function getCurrentLocation() {
             document.getElementById('latitude').value = currentLocation.latitude;
             document.getElementById('longitude').value = currentLocation.longitude;
             
+            console.log(`📍 Ubicación obtenida - Precisión: ${Math.round(currentLocation.accuracy)}m (límite: ${REQUIRED_ACCURACY}m)`);
+            
             if (currentLocation.accuracy <= REQUIRED_ACCURACY) {
                 locationValid = true;
                 document.getElementById('location_status').value = 'success';
-                updateLocationStatus('success', 'Ubicación obtenida correctamente', 
-                    `Precisión: ${Math.round(currentLocation.accuracy)} metros`);
+                
+                let successMsg = 'Ubicación obtenida correctamente';
+                let successDesc = `Precisión: ${Math.round(currentLocation.accuracy)} metros`;
+                
+                if (isDesktop && currentLocation.accuracy > REQUIRED_ACCURACY_OPTIMAL) {
+                    successDesc += ` (normal para ordenadores)`;
+                }
+                
+                updateLocationStatus('success', successMsg, successDesc);
                 updateSubmitButton();
                 updateLocationFields(currentLocation);
             } else {
                 locationValid = false;
-                updateLocationStatus('warning', 'Precisión GPS insuficiente', 
-                    `Se requiere ${REQUIRED_ACCURACY}m o menos. Actual: ${Math.round(currentLocation.accuracy)}m`);
+                
+                const precisedMsg = isDesktop 
+                    ? `Precisión insuficiente (${Math.round(currentLocation.accuracy)}m > ${REQUIRED_ACCURACY}m)`
+                    : `Precisión GPS insuficiente`;
+                
+                const preciseDesc = isDesktop
+                    ? `Se requiere ${REQUIRED_ACCURACY}m o menos. En desktop, intente conectarse a una red WiFi conocida para mejorar la precisión.`
+                    : `Se requiere ${REQUIRED_ACCURACY}m o menos. Actual: ${Math.round(currentLocation.accuracy)}m`;
+                
+                updateLocationStatus('warning', precisedMsg, preciseDesc);
                 
                 if (locationAttempts < MAX_LOCATION_ATTEMPTS) {
                     setTimeout(() => getCurrentLocation(), 2000);
                 } else {
-                    updateLocationStatus('error', 'No se pudo obtener la precisión requerida', '');
+                    updateLocationStatus('error', 'No se pudo obtener la precisión requerida', 
+                        isDesktop ? 'Intente conectarse a WiFi o usar un dispositivo móvil' : '');
                     document.getElementById('retry_location_btn').style.display = 'block';
                 }
             }
@@ -1587,7 +1728,9 @@ function getCurrentLocation() {
                     break;
                 case error.POSITION_UNAVAILABLE:
                     errorMessage = 'Ubicación no disponible';
-                    errorDescription = 'Verifique su conexión GPS';
+                    errorDescription = isDesktop 
+                        ? 'Verifique su conexión a Internet o WiFi' 
+                        : 'Verifique su conexión GPS';
                     break;
                 case error.TIMEOUT:
                     errorMessage = 'Tiempo agotado';
@@ -1618,7 +1761,7 @@ function getCurrentLocation() {
 
 function updateLocationStatus(type, message, description) {
     const statusDiv = document.getElementById('location_status_display');
-    const icons = { loading: '🌐', success: '✅', warning: '⚠️', error: '❌' };
+    const icons = { loading: '🌍', success: '✅', warning: '⚠️', error: '❌' };
     
     statusDiv.className = `location-status ${type}`;
     statusDiv.innerHTML = `${icons[type]} <strong>${message}</strong>${description ? '<br>' + description : ''}`;
@@ -1645,14 +1788,43 @@ function updateSubmitButton() {
 function updateLocationFields(location) {
     const accuracy = Math.round(location.accuracy);
     let precisionText = `${accuracy} metros`;
+    let precisionClass = '';
     
-    if (accuracy <= 10) precisionText += ' (Excelente)';
-    else if (accuracy <= 30) precisionText += ' (Muy Buena)';
-    else if (accuracy <= 50) precisionText += ' (Buena)';
-    else precisionText += ' (Regular)';
+    // Clasificación de precisión adaptada al tipo de dispositivo
+    if (isDesktop) {
+        // Para desktop: estándares más relajados
+        if (accuracy <= 200) {
+            precisionText += ' (Excelente para Desktop)';
+            precisionClass = 'uas-location';
+        } else if (accuracy <= 500) {
+            precisionText += ' (Muy Buena para Desktop)';
+            precisionClass = 'uas-location';
+        } else if (accuracy <= 1000) {
+            precisionText += ' (Aceptable para Desktop)';
+            precisionClass = '';
+        } else {
+            precisionText += ' (Baja - típica de Desktop)';
+            precisionClass = 'warning';
+        }
+    } else {
+        // Para móviles: estándares estrictos
+        if (accuracy <= 10) {
+            precisionText += ' (Excelente)';
+            precisionClass = 'uas-location';
+        } else if (accuracy <= 30) {
+            precisionText += ' (Muy Buena)';
+            precisionClass = 'uas-location';
+        } else if (accuracy <= 50) {
+            precisionText += ' (Buena)';
+            precisionClass = '';
+        } else {
+            precisionText += ' (Regular)';
+            precisionClass = 'warning';
+        }
+    }
     
     document.getElementById('precision_gps').value = precisionText;
-    document.getElementById('precision_gps').className = 'location-field';
+    document.getElementById('precision_gps').className = `location-field ${precisionClass}`;
     
     const ubicacionDetectada = detectarUbicacionEspecifica(location.latitude, location.longitude);
     const campoUbicacion = document.getElementById('ubicacion_detectada');
@@ -1844,27 +2016,40 @@ async function diagnosticComplete() {
     console.log('======================\n');
     
     console.log('1. DISPOSITIVO:');
+    console.log('   - Tipo:', deviceType);
+    console.log('   - Es Desktop:', isDesktop ? '✅' : '❌');
+    console.log('   - Es Móvil:', !isDesktop ? '✅' : '❌');
     console.log('   - iOS:', isIOS ? '✅' : '❌');
     console.log('   - Safari:', isSafari ? '✅' : '❌');
     console.log('   - User Agent:', navigator.userAgent);
+    console.log('   - Pantalla:', `${window.screen.width}x${window.screen.height}`);
+    console.log('   - Touch Points:', navigator.maxTouchPoints || 0);
     
-    console.log('\n2. CONFIGURACIÓN:');
+    console.log('\n2. PRECISIÓN GPS:');
+    console.log('   - Método:', isDesktop ? 'IP/WiFi' : 'GPS nativo');
+    console.log('   - Precisión requerida:', REQUIRED_ACCURACY + 'm');
+    console.log('   - Precisión óptima:', REQUIRED_ACCURACY_OPTIMAL + 'm');
+    console.log('   - Actual:', currentLocation ? `${Math.round(currentLocation.accuracy)}m` : 'No obtenida');
+    console.log('   - Estado:', locationValid ? '✅ Válida' : '❌ Inválida');
+    
+    console.log('\n3. CONFIGURACIÓN:');
     console.log('   - Client ID:', GOOGLE_CLIENT_ID ? '✅' : '❌');
     console.log('   - Script URL:', GOOGLE_SCRIPT_URL ? '✅' : '❌');
     console.log('   - HTTPS:', location.protocol === 'https:' ? '✅' : '❌');
     
-    console.log('\n3. AUTENTICACIÓN:');
+    console.log('\n4. AUTENTICACIÓN:');
     console.log('   - Usuario autenticado:', isAuthenticated ? '✅' : '❌');
     console.log('   - Consentimiento:', privacyConsent ? '✅' : '❌');
     console.log('   - Google API:', typeof google !== 'undefined' ? '✅' : '❌');
     console.log('   - localStorage:', safeLocalStorage() ? '✅' : '❌ (modo privado)');
     
-    console.log('\n4. UBICACIÓN:');
+    console.log('\n5. UBICACIÓN:');
     console.log('   - Geolocalización:', navigator.geolocation ? '✅' : '❌');
     console.log('   - Ubicación válida:', locationValid ? '✅' : '❌');
     console.log('   - Precisión actual:', currentLocation ? `${currentLocation.accuracy}m` : 'N/A');
+    console.log('   - Intentos:', locationAttempts + '/' + MAX_LOCATION_ATTEMPTS);
     
-    console.log('\n5. EVIDENCIAS:');
+    console.log('\n6. EVIDENCIAS:');
     console.log('   - Archivos seleccionados:', selectedFiles.length);
     console.log('   - Drag & Drop:', !isIOS ? '✅ Habilitado' : '❌ Deshabilitado (iOS)');
     console.log('   - DataTransfer:', !isIOS ? '✅ Disponible' : '❌ No disponible (iOS)');
@@ -1874,13 +2059,36 @@ async function diagnosticComplete() {
         await diagnosticarEvidencias();
     }
     
+    console.log('\n7. RECOMENDACIONES:');
+    if (isDesktop && currentLocation && currentLocation.accuracy > 300) {
+        console.log('   ⚠️ Desktop con baja precisión:');
+        console.log('      - Conéctese a una red WiFi conocida');
+        console.log('      - Use un dispositivo móvil para mejor precisión');
+        console.log('      - La precisión actual (' + Math.round(currentLocation.accuracy) + 'm) es normal para desktop');
+    }
+    if (!locationValid) {
+        console.log('   ⚠️ Ubicación no válida:');
+        console.log('      - Verifique permisos de ubicación');
+        console.log('      - Asegúrese de tener conexión a Internet');
+        if (isDesktop) {
+            console.log('      - Considere usar un dispositivo móvil');
+        }
+    }
+    if (!isAuthenticated) {
+        console.log('   ⚠️ No autenticado - Complete la autenticación primero');
+    }
+    
     console.log('\n======================');
     console.log('FUNCIONES DISPONIBLES:');
     console.log('- diagnosticarEvidencias() - Analiza archivos');
     console.log('- diagnosticComplete() - Diagnóstico completo');
+    console.log('- getDeviceInfo() - Información del dispositivo');
 }
 
 // Mensaje de inicio
 console.log('✅ Script cargado correctamente');
-console.log(`📱 Modo: ${isIOS ? 'iOS (compatibilidad especial)' : 'Android/Windows/Desktop (funcionalidad completa)'}`);
+console.log(`📱 Dispositivo: ${deviceType}`);
+console.log(`💻 Es Desktop: ${isDesktop ? 'Sí' : 'No'}`);
+console.log(`📍 Precisión requerida: ${REQUIRED_ACCURACY}m ${isDesktop ? '(relajada para desktop)' : '(estándar móvil)'}`);
+console.log(`🎯 Modo: ${isIOS ? 'iOS (compatibilidad especial)' : isDesktop ? 'Desktop (precisión adaptada)' : 'Android/Windows/Desktop (funcionalidad completa)'}`);
 console.log('🔍 Para diagnóstico: diagnosticComplete()');
