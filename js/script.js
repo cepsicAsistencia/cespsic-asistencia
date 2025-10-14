@@ -36,7 +36,7 @@ const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyllBO0vTORyg
 const GOOGLE_CLIENT_ID = '799841037062-kal4vump3frc2f8d33bnp4clc9amdnng.apps.googleusercontent.com';
 
 const ubicacionesUAS = [
-    { name: "CESPSIC - Centro de Servicios Psicológicos", lat: 24.7995, lng: -107.3948, radius: 50 },
+    { name: "CESPSIC - Centro de Servicios Psicológicos", lat: 24.8278, lng: -107.3812, radius: 50 },
     { name: "Facultad de Psicología UAS", lat: 24.7993, lng: -107.3950, radius: 100 },
     { name: "Universidad Autónoma de Sinaloa - Campus Central", lat: 24.7990, lng: -107.3950, radius: 200 }
 ];
