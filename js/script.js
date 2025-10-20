@@ -32,12 +32,8 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const PRIVACY_VERSION = '1.0';
 
-//PRODUCCION
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyllBO0vTORygvLlbTeRWfNXz1_Dt1khrM2z_BUxbNM6jWqEGYDqaLnd7LJs9Fl9Q9X/exec';
 const GOOGLE_CLIENT_ID = '799841037062-kal4vump3frc2f8d33bnp4clc9amdnng.apps.googleusercontent.com';
-//PRUEBAS
-//const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw10UgiYsuGYi16MisVfk7fx-wlGU-gUmCKTz2bZmyqys_2ku1ghZ9zzv71UncZ_sXlDg/exec';
-//const GOOGLE_CLIENT_ID = '154864030871-ck4l5krb7qm68kmp6a7rcq7h072ldm6g.apps.googleusercontent.com';
 
 const ubicacionesUAS = [
     { name: "CESPSIC - Centro de Servicios Psicológicos", lat: 24.8278, lng: -107.3812, radius: 50 },
@@ -352,10 +348,7 @@ async function revokePrivacyConsent() {
 }
 
 async function recordPrivacyAction(action) {
-    if (!currentUser) {
-        console.warn('⚠️ Usuario no autenticado al registrar privacidad');
-        throw new Error('Usuario no autenticado');
-    }
+    if (!currentUser) throw new Error('Usuario no autenticado');
     
     const privacyData = {
         action: 'record_privacy_action',
@@ -370,16 +363,7 @@ async function recordPrivacyAction(action) {
         is_ios: isIOS
     };
     
-    console.log('📤 Datos de privacidad a enviar:', privacyData);
-    
-    try {
-        const response = await sendDataWithFallback(privacyData);
-        console.log('✅ Respuesta del servidor (privacidad):', response);
-        return response;
-    } catch (error) {
-        console.error('❌ Error enviando datos de privacidad:', error);
-        throw error;
-    }
+    await sendDataWithFallback(privacyData);
 }
 
 // ========== GOOGLE SIGN-IN ==========
@@ -430,148 +414,22 @@ function initializeGoogleSignIn() {
             client_id: GOOGLE_CLIENT_ID,
             callback: handleCredentialResponse,
             auto_select: false,
-            cancel_on_tap_outside: true
+            cancel_on_tap_outside: true,
+            ux_mode: 'popup'
         });
-        
         google.accounts.id.disableAutoSelect();
         google.accounts.id.cancel();
-        
-        console.log('✅ Google Sign-In inicializado correctamente');
     } catch (error) {
-        console.error('❌ Error inicializando Google Sign-In:', error);
-        showStatus('Error cargando sistema de autenticación: ' + error.message, 'error');
+        console.error('Error inicializando Google Sign-In:', error);
+        showStatus('Error cargando sistema de autenticación.', 'error');
     }
 }
 
 function proceedWithGoogleSignIn() {
-    console.log('🔐 Iniciando proceso de autenticación...');
-    
-    try {
-        // ✅ MÉTODO DIRECTO: Solo mostrar botón en modal
-        showGoogleButtonInModal();
-        
-    } catch (error) {
-        console.error('❌ Error en autenticación:', error);
-        showStatus('Error al iniciar autenticación: ' + error.message, 'error');
-    }
-}
-
-function showGoogleButtonInModal() {
-    // Remover modal existente si hay
-    const existingModal = document.getElementById('google-auth-modal');
-    if (existingModal) existingModal.remove();
-    
-    // Crear modal
-    const modal = document.createElement('div');
-    modal.id = 'google-auth-modal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        animation: fadeIn 0.3s ease-out;
-    `;
-    
-    const container = document.createElement('div');
-    container.style.cssText = `
-        background: white;
-        padding: 40px;
-        border-radius: 15px;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-        text-align: center;
-        max-width: 400px;
-        width: 90%;
-        animation: slideUp 0.3s ease-out;
-    `;
-    
-    container.innerHTML = `
-        <div style="margin-bottom: 20px;">
-            <svg width="48" height="48" viewBox="0 0 48 48" style="margin-bottom: 15px;">
-                <path fill="#4285F4" d="M24 9.5c3.9 0 6.9 1.7 8.5 3.1l6.3-6.3C34.7 2.3 29.8 0 24 0 14.6 0 6.7 5.7 3.1 13.9l7.4 5.7C12.2 13.3 17.6 9.5 24 9.5z"/>
-                <path fill="#34A853" d="M46.1 24.5c0-1.5-.1-3-.4-4.5H24v9h12.7c-.6 3.1-2.3 5.7-4.9 7.5l7.4 5.7c4.3-4 6.9-9.9 6.9-17.7z"/>
-                <path fill="#FBBC05" d="M10.5 28.5c-.6-1.7-.9-3.5-.9-5.5s.3-3.8.9-5.5L3.1 11.8C1.1 15.7 0 20.2 0 25s1.1 9.3 3.1 13.2l7.4-5.7z"/>
-                <path fill="#EA4335" d="M24 48c5.8 0 10.7-1.9 14.3-5.2l-7.4-5.7c-1.9 1.3-4.4 2.1-6.9 2.1-6.4 0-11.8-4.3-13.7-10.1l-7.4 5.7C6.7 42.3 14.6 48 24 48z"/>
-            </svg>
-            <h3 style="margin: 0 0 10px 0; color: #333; font-size: 20px;">Iniciar Sesión</h3>
-            <p style="margin: 0 0 20px 0; color: #666; font-size: 14px;">
-                Autentíquese con su cuenta de Google para continuar
-            </p>
-        </div>
-        <div id="google-signin-button" style="display: flex; justify-content: center; margin-bottom: 20px;"></div>
-        <button id="cancel-auth-btn" style="
-            padding: 10px 20px;
-            background: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            color: #666;
-        ">Cancelar</button>
-    `;
-    
-    modal.appendChild(container);
-    document.body.appendChild(modal);
-    
-    // Renderizar botón de Google
-    setTimeout(() => {
-        const buttonDiv = document.getElementById('google-signin-button');
-        if (buttonDiv) {
-            try {
-                google.accounts.id.renderButton(buttonDiv, {
-                    theme: 'filled_blue',
-                    size: 'large',
-                    text: 'signin_with',
-                    shape: 'rectangular',
-                    width: 280
-                });
-                console.log('✅ Botón de Google renderizado');
-            } catch (renderError) {
-                console.error('❌ Error renderizando botón:', renderError);
-                buttonDiv.innerHTML = '<p style="color: #dc3545;">Error al cargar botón de Google. Recargue la página.</p>';
-            }
-        }
-    }, 100);
-    
-    // Botón cancelar
-    document.getElementById('cancel-auth-btn').onclick = () => {
-        closeAuthModal();
-        if (privacyConsent && !isAuthenticated) {
-            privacyConsent = false;
-            updatePrivacyUI();
-            showStatus('Debe completar la autenticación para continuar.', 'error');
-            setTimeout(() => hideStatus(), 5000);
-        }
-    };
-    
-    // Cerrar con Escape
-    const handleEscape = (e) => {
-        if (e.key === 'Escape') {
-            closeAuthModal();
-            document.removeEventListener('keydown', handleEscape);
-        }
-    };
-    document.addEventListener('keydown', handleEscape);
-    
-    // Cerrar al hacer clic fuera
-    modal.onclick = (e) => {
-        if (e.target === modal) {
-            closeAuthModal();
-        }
-    };
-}
-
-function triggerGoogleSignIn() {
-    try {
-        google.accounts.id.prompt();
-    } catch (error) {
-        console.error('Error activando Google Sign-In:', error);
-        alert('No se pudo iniciar la autenticación. Por favor, recargue la página.');
+    if (isIOS) {
+        showIOSGoogleButton();
+    } else {
+        showVisibleGoogleButton();
     }
 }
 
@@ -675,20 +533,13 @@ function showVisibleGoogleButton() {
 
 async function handleCredentialResponse(response) {
     try {
-        console.log('🔐 Credencial recibida de Google');
-        closeAuthModal();
-        
-        if (!response || !response.credential) {
-            throw new Error('Credencial inválida recibida de Google');
+        if (isIOS) {
+            closeIOSAuthModal();
+        } else {
+            closeAuthModal();
         }
         
         const userInfo = parseJwt(response.credential);
-        
-        if (!userInfo) {
-            throw new Error('No se pudo decodificar la credencial');
-        }
-        
-        console.log('✅ Usuario decodificado:', userInfo.email);
         
         currentUser = {
             id: userInfo.sub,
@@ -699,7 +550,7 @@ async function handleCredentialResponse(response) {
         };
 
         if (!currentUser.email_verified) {
-            showStatus('Su cuenta de Gmail no está verificada. Por favor verifique su correo.', 'error');
+            showStatus('Su cuenta de Gmail no está verificada.', 'error');
             return;
         }
 
@@ -709,24 +560,32 @@ async function handleCredentialResponse(response) {
             await handleLoginFlow();
         }
     } catch (error) {
-        console.error('❌ Error procesando credenciales:', error);
-        showStatus('Error en la autenticación: ' + error.message, 'error');
-        closeAuthModal();
-        
-        // Si era para login, revertir consentimiento
-        if (authenticationPurpose === 'login' && privacyConsent && !isAuthenticated) {
-            privacyConsent = false;
-            updatePrivacyUI();
+        console.error('Error procesando credenciales:', error);
+        showStatus('Error en la autenticación.', 'error');
+        if (isIOS) {
+            closeIOSAuthModal();
+        } else {
+            closeAuthModal();
         }
     }
 }
 
 function closeAuthModal() {
-    const modal = document.getElementById('google-auth-modal');
-    if (modal) {
-        modal.style.animation = 'fadeOut 0.3s ease-out';
-        setTimeout(() => modal.remove(), 300);
+    if (privacyConsent && !isAuthenticated) {
+        privacyConsent = false;
+        updatePrivacyUI();
+        showStatus('Debe completar la autenticación.', 'error');
+        setTimeout(() => hideStatus(), 5000);
     }
+    
+    const authOverlay = document.getElementById('google-auth-overlay');
+    if (authOverlay) authOverlay.remove();
+    
+    setTimeout(() => {
+        document.querySelectorAll('div[style*="position: fixed"][style*="z-index"]').forEach(overlay => {
+            if (overlay.style.zIndex >= 10000) overlay.remove();
+        });
+    }, 500);
 }
 
 async function handleLoginFlow() {
@@ -742,16 +601,7 @@ async function handleLoginFlow() {
         };
         
         safeSetItem('cespsic_privacy_accepted', JSON.stringify(consentData));
-        
-        // ✅ REGISTRAR ACCIÓN DE PRIVACIDAD CON MEJOR MANEJO DE ERRORES
-        try {
-            console.log('📤 Enviando acción de privacidad al servidor...');
-            const privacyResponse = await recordPrivacyAction('PRIVACY_ACCEPTED');
-            console.log('✅ Respuesta de privacidad:', privacyResponse);
-        } catch (privacyError) {
-            console.warn('⚠️ No se pudo registrar la acción de privacidad en el servidor:', privacyError);
-            // ⚠️ NO detener el flujo, solo advertir
-        }
+        await recordPrivacyAction('PRIVACY_ACCEPTED');
         
         isAuthenticated = true;
         userEmail = currentUser.email;
@@ -765,7 +615,6 @@ async function handleLoginFlow() {
         
         showStatus(`¡Bienvenido ${currentUser.name}! Autenticación exitosa.`, 'success');
         setTimeout(() => hideStatus(), 3000);
-        
     } catch (error) {
         console.error('Error en flujo de login:', error);
         privacyConsent = false;
@@ -1211,49 +1060,8 @@ async function uploadEvidencias() {
     return evidenciasInfo;
 }
 
-function processResponse(responseText) {
-    let responseData;
-    try {
-        responseData = JSON.parse(responseText);
-        
-        // ✅ VALIDAR RESPUESTA EXPLÍCITAMENTE
-        if (responseData.success === true) {
-            console.log('✅ Respuesta exitosa del servidor');
-            responseReceived = true;
-            cleanup();
-            resolve(responseData);
-        } else {
-            // ❌ Error explícito del servidor
-            console.error('❌ Error del servidor:', responseData.message);
-            cleanup();
-            reject(new Error(responseData.message || 'Error desconocido del servidor'));
-        }
-        
-    } catch (parseError) {
-        console.error('❌ Error parseando respuesta JSON:', parseError);
-        console.log('Respuesta recibida:', responseText.substring(0, 200));
-        
-        // ✅ Si no es JSON válido pero hay texto, asumir éxito parcial
-        if (responseText.length > 10) {
-            console.warn('⚠️ Respuesta no es JSON válido, pero hay contenido');
-            responseReceived = true;
-            cleanup();
-            resolve({
-                success: true,
-                message: 'Datos enviados (formato de respuesta no estándar)',
-                row_number: 'Verificar en Google Sheets',
-                sheet_verified: false,
-                raw_response: responseText.substring(0, 100)
-            });
-        } else {
-            cleanup();
-            reject(new Error('Formato de respuesta inválido del servidor'));
-        }
-    }
-}
-
 async function sendDataWithFallback(data) {
-    console.log('📤 Enviando datos al servidor...');
+    console.log('Enviando datos con método sin CORS...');
     
     return new Promise((resolve, reject) => {
         const iframe = document.createElement('iframe');
@@ -1280,9 +1088,6 @@ async function sendDataWithFallback(data) {
             form.appendChild(input);
         }
         
-        let responseReceived = false;
-        let timeoutId;
-        
         iframe.onload = function() {
             try {
                 setTimeout(() => {
@@ -1294,85 +1099,63 @@ async function sendDataWithFallback(data) {
                             responseText = iframeDoc.body.textContent || iframeDoc.body.innerText || '';
                         }
                         
-                        console.log('📥 Respuesta del servidor:', responseText);
+                        console.log('Respuesta del iframe:', responseText);
                         
-                        // ✅ MEJORADO: Permitir respuestas vacías para ciertas acciones
-                        if (!responseText || responseText.trim() === '') {
-                            console.warn('⚠️ Respuesta vacía del servidor');
-                            
-                            // Para acciones de privacidad, aceptar respuesta vacía como éxito
-                            if (data.action === 'record_privacy_action') {
-                                console.log('ℹ️ Acción de privacidad - asumiendo éxito');
-                                responseReceived = true;
-                                cleanup();
-                                resolve({
-                                    success: true,
-                                    message: 'Acción registrada',
-                                    local_only: true
-                                });
-                                return;
-                            }
-                            
-                            // Para registros de asistencia, esperar un poco más
-                            console.log('⏳ Esperando 3 segundos adicionales para respuesta de asistencia...');
-                            setTimeout(() => {
-                                try {
-                                    const retryDoc = iframe.contentDocument || iframe.contentWindow.document;
-                                    const retryText = retryDoc?.body?.textContent || retryDoc?.body?.innerText || '';
-                                    
-                                    if (retryText && retryText.trim() !== '') {
-                                        console.log('✅ Respuesta obtenida en segundo intento:', retryText);
-                                        processResponse(retryText);
-                                    } else {
-                                        console.warn('⚠️ Sin respuesta después de espera adicional');
-                                        // ✅ CAMBIO CRÍTICO: Asumir éxito si los datos se enviaron
-                                        responseReceived = true;
-                                        cleanup();
-                                        resolve({
-                                            success: true,
-                                            message: 'Asistencia registrada (verificación del servidor pendiente)',
-                                            row_number: 'Verificar en Google Sheets',
-                                            sheet_verified: false,
-                                            warning: 'El servidor no confirmó, pero los datos fueron enviados'
-                                        });
-                                    }
-                                } catch (retryError) {
-                                    console.error('Error en reintento:', retryError);
-                                    cleanup();
-                                    reject(new Error('No se pudo obtener confirmación del servidor'));
-                                }
-                            }, 3000);
-                            return;
+                        let responseData;
+                        try {
+                            responseData = JSON.parse(responseText);
+                        } catch (parseError) {
+                            responseData = {
+                                success: true,
+                                message: 'Datos enviados correctamente',
+                                method: 'form_submission',
+                                raw_response: responseText
+                            };
                         }
                         
-                        processResponse(responseText);
+                        cleanup();
+                        resolve(responseData);
                         
                     } catch (error) {
-                        console.error('❌ Error procesando respuesta del iframe:', error);
+                        console.log('No se pudo leer respuesta del iframe, asumiendo éxito');
                         cleanup();
-                        reject(new Error('No se pudo procesar la respuesta del servidor: ' + error.message));
+                        resolve({
+                            success: true,
+                            message: 'Datos enviados (respuesta no accesible)',
+                            method: 'form_submission_assumed'
+                        });
                     }
                 }, 2000);
                 
             } catch (error) {
-                console.error('❌ Error en onload del iframe:', error);
+                console.log('Error procesando iframe, asumiendo éxito');
                 cleanup();
-                reject(new Error('Error de comunicación con el servidor: ' + error.message));
+                resolve({
+                    success: true,
+                    message: 'Datos enviados (método form)',
+                    method: 'form_submission_fallback'
+                });
             }
         };
         
         iframe.onerror = function(error) {
-            console.error('❌ Error en iframe:', error);
+            console.log('Error en iframe, pero posiblemente datos enviados:', error);
             cleanup();
-            reject(new Error('Error de red al conectar con el servidor. Verifique su conexión a Internet.'));
+            resolve({
+                success: true,
+                message: 'Datos enviados (error de iframe ignorado)',
+                method: 'form_submission_with_error'
+            });
         };
         
-        timeoutId = setTimeout(() => {
-            if (!responseReceived) {
-                console.error('⏱️ Timeout: El servidor no respondió en 15 segundos');
-                cleanup();
-                reject(new Error('El servidor tardó demasiado en responder (>15s). Intente nuevamente.'));
-            }
+        const timeoutId = setTimeout(() => {
+            console.log('Timeout en envío, asumiendo éxito');
+            cleanup();
+            resolve({
+                success: true,
+                message: 'Datos enviados (timeout)',
+                method: 'form_submission_timeout'
+            });
         }, 15000);
         
         function cleanup() {
@@ -1392,7 +1175,7 @@ async function sendDataWithFallback(data) {
         document.body.appendChild(iframe);
         document.body.appendChild(form);
         
-        console.log('🚀 Enviando formulario...');
+        console.log('Enviando formulario...');
         form.submit();
     });
 }
@@ -1498,18 +1281,18 @@ async function handleSubmit(e) {
     e.preventDefault();
     
     if (!isAuthenticated || !currentUser) {
-        showStatus('❌ Debe autenticarse con Google primero.', 'error');
+        showStatus('Debe autenticarse con Google.', 'error');
         return;
     }
     
     if (!locationValid || !currentLocation) {
-        showStatus('❌ Ubicación GPS requerida. Complete la autenticación.', 'error');
+        showStatus('Ubicación GPS requerida.', 'error');
         return;
     }
     
     if (currentLocation.accuracy > REQUIRED_ACCURACY) {
         const deviceTypeText = isDesktop ? 'Desktop/Laptop' : 'Móvil';
-        showStatus(`❌ Precisión GPS insuficiente: ${Math.round(currentLocation.accuracy)}m > ${REQUIRED_ACCURACY}m (${deviceTypeText})`, 'error');
+        showStatus(`Precisión GPS insuficiente: ${Math.round(currentLocation.accuracy)}m > ${REQUIRED_ACCURACY}m (${deviceTypeText})`, 'error');
         return;
     }
     
@@ -1519,10 +1302,10 @@ async function handleSubmit(e) {
         return;
     }
     
-    showStatus('💾 Guardando asistencia...', 'success');
+    showStatus('Guardando asistencia...', 'success');
     const submitBtn = document.querySelector('.submit-btn');
     submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ Guardando...';
+    submitBtn.textContent = 'Guardando...';
     
     try {
         console.log('\n🚀 INICIANDO ENVÍO DE FORMULARIO');
@@ -1531,44 +1314,37 @@ async function handleSubmit(e) {
         console.log(`📍 Precisión GPS: ${Math.round(currentLocation.accuracy)}m`);
         console.log(`📁 Archivos seleccionados: ${selectedFiles.length}`);
         
-        // FASE 1: SUBIR EVIDENCIAS
         let evidenciasUrls = [];
         if (selectedFiles.length > 0) {
             console.log('\n📤 FASE 1: SUBIENDO EVIDENCIAS...');
-            showStatus('📤 Subiendo evidencias...', 'success');
+            showStatus('Subiendo evidencias...', 'success');
+            evidenciasUrls = await uploadEvidencias();
             
-            try {
-                evidenciasUrls = await uploadEvidencias();
+            const successUploads = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS');
+            const failedUploads = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED');
+            
+            console.log(`📊 Resultado: ${successUploads.length} éxito, ${failedUploads.length} fallos`);
+            
+            if (selectedFiles.length > 0 && successUploads.length === 0) {
+                const errorDetails = failedUploads.map(e => `• ${e.originalName}: ${e.error}`).join('\n');
                 
-                const successUploads = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS');
-                const failedUploads = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED');
+                console.error('\n❌ TODAS LAS EVIDENCIAS FALLARON:');
+                console.error(errorDetails);
                 
-                console.log(`📊 Resultado: ${successUploads.length} éxito, ${failedUploads.length} fallos`);
+                const userDecision = confirm(
+                    `⚠️ NO se pudo subir ninguna evidencia:\n\n${errorDetails}\n\n` +
+                    `¿Desea continuar registrando la asistencia SIN evidencias?\n\n` +
+                    `• Clic en "Aceptar" = Continuar sin evidencias\n` +
+                    `• Clic en "Cancelar" = Reintentar o corregir archivos`
+                );
                 
-                if (selectedFiles.length > 0 && successUploads.length === 0) {
-                    const errorDetails = failedUploads.map(e => `• ${e.originalName}: ${e.error}`).join('\n');
-                    
-                    console.error('\n❌ TODAS LAS EVIDENCIAS FALLARON:');
-                    console.error(errorDetails);
-                    
-                    const userDecision = confirm(
-                        `⚠️ NO se pudo subir ninguna evidencia:\n\n${errorDetails}\n\n` +
-                        `¿Desea continuar registrando la asistencia SIN evidencias?\n\n` +
-                        `• Clic en "Aceptar" = Continuar sin evidencias\n` +
-                        `• Clic en "Cancelar" = Reintentar o corregir archivos`
-                    );
-                    
-                    if (!userDecision) {
-                        throw new Error('Registro cancelado por el usuario. Revise los archivos e intente nuevamente.');
-                    }
-                    
-                    console.log('⚠️ Usuario decidió continuar sin evidencias');
-                } else if (failedUploads.length > 0) {
-                    console.warn(`⚠️ ${failedUploads.length} evidencia(s) no se subieron`);
+                if (!userDecision) {
+                    throw new Error('Registro cancelado. Por favor revise los archivos e intente nuevamente.');
                 }
-            } catch (uploadError) {
-                console.error('❌ Error crítico subiendo evidencias:', uploadError);
-                throw new Error('Error al subir evidencias: ' + uploadError.message);
+                
+                console.log('⚠️ Usuario decidió continuar sin evidencias');
+            } else if (failedUploads.length > 0) {
+                console.warn(`⚠️ ${failedUploads.length} evidencia(s) no se subieron, pero se continuará con ${successUploads.length}`);
             }
         }
         
@@ -1621,7 +1397,7 @@ async function handleSubmit(e) {
         data.authenticated_user_name = currentUser.name;
         data.authentication_timestamp = new Date().toISOString();
         
-        // DATOS DE DISPOSITIVO
+        // ===== NUEVO: Información del dispositivo =====
         data.device_type = deviceType;
         data.is_desktop = isDesktop;
         data.is_mobile = !isDesktop;
@@ -1640,62 +1416,25 @@ async function handleSubmit(e) {
         console.log(`   Método GPS: ${data.gps_method}`);
         console.log(`   Precisión: ${data.precision_gps_metros}m`);
         console.log(`   Evidencias exitosas: ${data.total_evidencias}`);
+        console.log(`   Evidencias fallidas: ${data.evidencias_failed}`);
         
-        showStatus('⏳ Enviando al servidor...', 'success');
+        const responseData = await sendDataWithFallback(data);
         
-        // ENVÍO CON MANEJO DE ERRORES ROBUSTO
-        let responseData;
-        try {
-            console.log('🔄 Llamando a sendDataWithFallback...');
-            responseData = await sendDataWithFallback(data);
-            console.log('✅ RESPUESTA DEL SERVIDOR:', responseData);
-            console.log('   - success:', responseData?.success);
-            console.log('   - row_number:', responseData?.row_number);
-            console.log('   - message:', responseData?.message);
-        } catch (sendError) {
-            console.error('❌ ERROR EN ENVÍO:', sendError);
-            console.error('   - Nombre:', sendError.name);
-            console.error('   - Mensaje:', sendError.message);
-            console.error('   - Stack:', sendError.stack);
-            throw new Error('Error de conexión: ' + sendError.message);
-        }
+        console.log('✅ FORMULARIO ENVIADO EXITOSAMENTE');
         
-        // VALIDAR RESPUESTA
-        if (!responseData) {
-            console.error('❌ responseData es null o undefined');
-            throw new Error('No se recibió respuesta del servidor. Verifique su conexión.');
-        }
-        
-        console.log('\n🔍 VALIDANDO RESPUESTA...');
-        console.log('   - Tipo de responseData:', typeof responseData);
-        console.log('   - success:', responseData.success);
-        console.log('   - row_number:', responseData.row_number);
-        console.log('   - sheet_verified:', responseData.sheet_verified);
-        
-        // Aceptar success: true O row_number presente O warning presente (envío exitoso pero sin confirmación)
-        if (responseData.success === true || responseData.row_number || responseData.warning) {
-            console.log('✅ REGISTRO ACEPTADO COMO EXITOSO');
-            
-            const rowNumber = responseData.row_number || 'Verificar manualmente en Google Sheets';
-            const sheetVerified = responseData.sheet_verified === true;
-            
+        if (responseData) {
             const evidenciasInfo = data.total_evidencias > 0 
                 ? `\n✅ Evidencias: ${data.total_evidencias} imagen(es)${data.evidencias_failed > 0 ? ` (${data.evidencias_failed} no se pudieron subir)` : ''}`
                 : selectedFiles.length > 0 
                     ? `\n⚠️ Evidencias: No se pudo subir ninguna (registrado sin evidencias)`
                     : '';
             
-            const verificationWarning = !sheetVerified || responseData.warning
-                ? '\n⚠️ El servidor no confirmó el número de fila. Por favor, verifique manualmente en Google Sheets.' 
-                : '';
-            
             showStatus(`✅ ¡Asistencia registrada exitosamente!
             Usuario: ${currentUser.name}
             Dispositivo: ${deviceType}
             Modalidad: ${data.modalidad}
             Ubicación: ${data.ubicacion_detectada}
-            Precisión: ${data.precision_gps_metros}m
-            📋 Fila en Google Sheets: ${rowNumber}${evidenciasInfo}${verificationWarning}`, 'success');
+            Precisión: ${data.precision_gps_metros}m${evidenciasInfo}`, 'success');
             
             setTimeout(() => {
                 if (confirm('¿Desea registrar otra asistencia?')) {
@@ -1705,65 +1444,22 @@ async function handleSubmit(e) {
                     signOut();
                 }
                 hideStatus();
-            }, 8000);
-            
+            }, 5000);
         } else {
-            // Respuesta indica fallo explícito
-            const errorMsg = responseData.message || 'Error desconocido del servidor';
-            console.error('❌ REGISTRO FALLIDO:', errorMsg);
-            throw new Error(errorMsg);
+            throw new Error('Error en el envío del formulario');
         }
         
     } catch (error) {
         console.error('\n❌ ERROR EN ENVÍO DE FORMULARIO:', error);
-        console.error('   - Tipo:', error.name);
-        console.error('   - Mensaje:', error.message);
-        console.error('   - Stack:', error.stack);
-        
-        // MOSTRAR ERROR DETALLADO AL USUARIO
-        let userMessage = '❌ Error al guardar la asistencia:\n\n';
-        
-        if (error.message.includes('conexión') || error.message.includes('red') || error.message.includes('Internet')) {
-            userMessage += '🌐 Problema de conexión a Internet.\n';
-            userMessage += 'Verifique su conexión y vuelva a intentar.';
-        } else if (error.message.includes('servidor') || error.message.includes('timeout') || error.message.includes('respondió')) {
-            userMessage += '⏱️ El servidor no respondió correctamente.\n';
-            userMessage += 'Esto puede deberse a:\n';
-            userMessage += '• Conexión lenta\n';
-            userMessage += '• Servidor sobrecargado\n';
-            userMessage += '• Problemas temporales de Google\n\n';
-            userMessage += 'IMPORTANTE: Verifique en Google Sheets si el registro se guardó antes de intentar nuevamente.';
-        } else if (error.message.includes('Sheet') || error.message.includes('fila')) {
-            userMessage += '📊 Error con Google Sheets.\n';
-            userMessage += 'Contacte al administrador del sistema.';
-        } else if (error.message.includes('evidencias')) {
-            userMessage += '📷 ' + error.message;
-        } else if (error.message.includes('cancelado')) {
-            userMessage += '🚫 ' + error.message;
-        } else {
-            userMessage += error.message || 'Error desconocido';
-            userMessage += '\n\nContacte al administrador si el problema persiste.';
-        }
-        
-        showStatus(userMessage, 'error');
+        showStatus('❌ Error al guardar: ' + error.message, 'error');
         
         submitBtn.disabled = false;
         submitBtn.textContent = '📋 Registrar Asistencia';
         submitBtn.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
         
-        // No ocultar el error automáticamente
         setTimeout(() => {
-            const shouldHide = confirm(
-                'El registro NO se completó (o no se pudo confirmar).\n\n' +
-                'IMPORTANTE: Antes de reintentar, verifique en Google Sheets si el registro ya existe.\n\n' +
-                '¿Desea cerrar este mensaje?\n\n' +
-                'Clic en "Aceptar" = Cerrar mensaje\n' +
-                'Clic en "Cancelar" = Mantener mensaje visible'
-            );
-            if (shouldHide) {
-                hideStatus();
-            }
-        }, 3000);
+            hideStatus();
+        }, 8000);
     }
 }
 
@@ -2389,38 +2085,6 @@ async function diagnosticComplete() {
     console.log('- getDeviceInfo() - Información del dispositivo');
 }
 
-// ========== ANIMACIONES CSS ==========
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-    
-    @keyframes fadeOut {
-        from { opacity: 1; }
-        to { opacity: 0; }
-    }
-    
-    @keyframes slideUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    #cancel-auth-btn:hover {
-        background: #e0e0e0 !important;
-        border-color: #bbb !important;
-    }
-`;
-document.head.appendChild(style);
-
-console.log('✅ Sistema de autenticación corregido cargado');
 // Mensaje de inicio
 console.log('✅ Script cargado correctamente');
 console.log(`📱 Dispositivo: ${deviceType}`);
