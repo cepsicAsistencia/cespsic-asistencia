@@ -8,9 +8,9 @@
     <!-- Google Sign-In API -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 	<!-- PRODUCCION -->
-    <meta name="google-signin-client_id" content="799841037062-kal4vump3frc2f8d33bnp4clc9amdnng.apps.googleusercontent.com">
+    <!-- meta name="google-signin-client_id" content="799841037062-kal4vump3frc2f8d33bnp4clc9amdnng.apps.googleusercontent.com" -->
 	<!-- RUEBAS -->
-	<!-- meta name="google-signin-client_id" content="154864030871-ck4l5krb7qm68kmp6a7rcq7h072ldm6g.apps.googleusercontent.com" -->
+	<meta name="google-signin-client_id" content="154864030871-ck4l5krb7qm68kmp6a7rcq7h072ldm6g.apps.googleusercontent.com">
     
     <!-- CSS -->
     <link rel="stylesheet" href="css/styles.css">
@@ -23,7 +23,7 @@
 				<img src="https://lh3.googleusercontent.com/d/12tYxfzWgy3BVYjadXOEKlX5-uSsxIrBt" alt="CESPSIC" class="logo">
 				<img src="https://lh3.googleusercontent.com/d/1tR9QzPGbydb_qjDkZOKsoNU6_xIBGQP2" alt="Facultad de Psicología" class="logo">
             </div>
-            <h1>Servicio de atención psicológica, rescatando la inclusión del psicólogo a través del Centro de Servicios Psicológicos a la Comunidad (CESPSIC) v. 1.11</h1>
+            <h1>Servicio de atención psicológica, rescatando la inclusión del psicólogo a través del Centro de Servicios Psicológicos a la Comunidad (CESPSIC) v. 1.20</h1>
         </div>
 
         <!-- Sección de Autenticación -->
@@ -233,7 +233,18 @@
                         </div>
                     </div>
                 </div>
-
+				
+		        <!-- Sección de Registros del Día -->
+		        <div class="registros-section" id="registros-section" style="display: none;">
+		            <div class="registros-header">
+		                <h3>📊 Mis Registros de Hoy</h3>
+		                <span class="registros-count" id="registros-count">0 registros</span>
+		            </div>
+		            <div class="registros-lista" id="registros-lista">
+		                <!-- Los registros se cargarán aquí dinámicamente -->
+		            </div>
+		        </div>
+				
                 <!-- SECCIÓN DE EVIDENCIAS FOTOGRÁFICAS (Solo para salida) -->
                 <div class="form-section" id="evidencias_section" style="display: none;">
                     <div class="form-group">
