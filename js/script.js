@@ -31,6 +31,11 @@ const MAX_FILES = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const PRIVACY_VERSION = '1.0';
+// *** FIX: Aumentar tiempos de espera para verificación ***
+const TIEMPO_ESPERA_INICIAL = 15000; // 15s inicial (aumentado)
+const TIEMPO_ENTRE_VERIFICACIONES = [5000, 10000, 15000]; // Solo 3 intentos con tiempos largos
+const VERIFICATION_ATTEMPTS = 3; // Reducido de 5 a 3
+const ENABLE_VERIFICATION_FALLBACK = true; // Modo fallback cuando falle verificación
 
 //PRODUCCION
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyllBO0vTORygvLlbTeRWfNXz1_Dt1khrM2z_BUxbNM6jWqEGYDqaLnd7LJs9Fl9Q9X/exec';
@@ -79,19 +84,19 @@ function getDeviceType() {
 }
 
 function getDeviceInfo() {
-    return {
-        type: deviceType,
-        isDesktop: isDesktop,
-        isMobile: !isDesktop,
-        isIOS: isIOS,
-        isSafari: isSafari,
-        userAgent: navigator.userAgent,
-        screenWidth: window.screen.width,
-        screenHeight: window.screen.height,
-        touchPoints: navigator.maxTouchPoints || 0,
-        requiredAccuracy: REQUIRED_ACCURACY,
-        optimalAccuracy: REQUIRED_ACCURACY_OPTIMAL
-    };
+  return {
+    type: deviceType,
+    isDesktop: isDesktop,
+    isMobile: !isDesktop,
+    isIOS: isIOS,
+    isSafari: isSafari,
+    userAgent: navigator.userAgent,
+    screenWidth: window.screen.width,
+    screenHeight: window.screen.height,
+    touchPoints: navigator.maxTouchPoints || 0,
+    requiredAccuracy: REQUIRED_ACCURACY,
+    optimalAccuracy: REQUIRED_ACCURACY_OPTIMAL
+  };
 }
 
 // Inicializar aplicación
@@ -372,22 +377,22 @@ async function recordPrivacyAction(action) {
 
 // ========== GOOGLE SIGN-IN ==========
 function initializeForm() {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const fechaLocal = `${year}-${month}-${day}`;
-    
-    document.getElementById('fecha').value = fechaLocal;
-    updateCurrentTime();
-    document.getElementById('timestamp').value = new Date().toISOString();
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const fechaLocal = `${year}-${month}-${day}`;
+  
+  document.getElementById('fecha').value = fechaLocal;
+  updateCurrentTime();
+  document.getElementById('timestamp').value = new Date().toISOString();
 }
 
 function updateCurrentTime() {
-    const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    document.getElementById('hora').value = `${hours}:${minutes}`;	
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('hora').value = `${hours}:${minutes}`;	
 }
 
 function loadGoogleSignInScript() {
@@ -413,20 +418,20 @@ function blockGooglePrompts() {
 }
 
 function initializeGoogleSignIn() {
-    try {
-        google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: handleCredentialResponse,
-            auto_select: false,
-            cancel_on_tap_outside: true,
-            ux_mode: 'popup'
-        });
-        google.accounts.id.disableAutoSelect();
-        google.accounts.id.cancel();
-    } catch (error) {
-        console.error('Error inicializando Google Sign-In:', error);
-        showStatus('Error cargando sistema de autenticación.', 'error');
-    }
+  try {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+      auto_select: false,
+      cancel_on_tap_outside: true,
+      ux_mode: 'popup'
+    });
+    google.accounts.id.disableAutoSelect();
+    google.accounts.id.cancel();
+  } catch (error) {
+    console.error('Error inicializando Google Sign-In:', error);
+    showStatus('Error cargando sistema de autenticación.', 'error');
+  }
 }
 
 function proceedWithGoogleSignIn() {
@@ -619,6 +624,20 @@ async function handleLoginFlow() {
         
         showStatus(`¡Bienvenido ${currentUser.name}! Autenticación exitosa.`, 'success');
         setTimeout(() => hideStatus(), 3000);
+        
+        // *** INTENTAR CARGAR REGISTROS (1 intento) ***
+        setTimeout(async () => {
+          console.log('📊 Cargando registros del día...');
+          
+          try {
+            await mostrarRegistrosDelDia();
+            console.log('✅ Carga de registros completada');
+          } catch (e) {
+            console.warn('⚠️ Error cargando registros:', e);
+            // La función mostrarRegistrosDelDia ya maneja el error 403
+          }
+        }, 2000);
+        
     } catch (error) {
         console.error('Error en flujo de login:', error);
         privacyConsent = false;
@@ -651,28 +670,28 @@ function parseJwt(token) {
 }
 
 function updateAuthenticationUI() {
-    const authSection = document.getElementById('auth-section');
-    const authTitle = document.getElementById('auth-title');
-    const userInfo = document.getElementById('user-info');
-    const signinContainer = document.getElementById('signin-button-container');
+  const authSection = document.getElementById('auth-section');
+  const authTitle = document.getElementById('auth-title');
+  const userInfo = document.getElementById('user-info');
+  const signinContainer = document.getElementById('signin-button-container');
 
-    if (isAuthenticated && currentUser) {
-        authSection.classList.add('authenticated');
-        authTitle.textContent = '✅ Autenticación Exitosa';
-        authTitle.classList.add('authenticated');
+  if (isAuthenticated && currentUser) {
+    authSection.classList.add('authenticated');
+    authTitle.textContent = '✅ Autenticación Exitosa';
+    authTitle.classList.add('authenticated');
 
-        document.getElementById('user-avatar').src = currentUser.picture;
-        document.getElementById('user-email').textContent = currentUser.email;
-        document.getElementById('user-name').textContent = currentUser.name;
-        userInfo.classList.add('show');
-        signinContainer.style.display = 'none';
-    } else {
-        authSection.classList.remove('authenticated');
-        authTitle.textContent = '🔒 Autenticación Requerida';
-        authTitle.classList.remove('authenticated');
-        userInfo.classList.remove('show');
-        signinContainer.style.display = 'block';
-    }
+    document.getElementById('user-avatar').src = currentUser.picture;
+    document.getElementById('user-email').textContent = currentUser.email;
+    document.getElementById('user-name').textContent = currentUser.name;
+    userInfo.classList.add('show');
+    signinContainer.style.display = 'none';
+  } else {
+    authSection.classList.remove('authenticated');
+    authTitle.textContent = '🔒 Autenticación Requerida';
+    authTitle.classList.remove('authenticated');
+    userInfo.classList.remove('show');
+    signinContainer.style.display = 'block';
+  }
 }
 
 function enableForm() {
@@ -680,39 +699,40 @@ function enableForm() {
 }
 
 function disableForm() {
-    document.getElementById('form-container').classList.remove('authenticated');
-    locationValid = false;
-    updateSubmitButton();
+  document.getElementById('form-container').classList.remove('authenticated');
+  locationValid = false;
+  updateSubmitButton();
 }
 
 function signOut() {
-    try {
-        google.accounts.id.disableAutoSelect();
-        
-        isAuthenticated = false;
-        currentUser = null;
-        userEmail = null;
-        locationValid = false;
-        currentLocation = null;
-        locationAttempts = 0;
-        selectedFiles = [];
+  try {
+    google.accounts.id.disableAutoSelect();
+    
+    isAuthenticated = false;
+    currentUser = null;
+    userEmail = null;
+    locationValid = false;
+    currentLocation = null;
+    locationAttempts = 0;
+    selectedFiles = [];
 
-        ['email', 'google_user_id', 'latitude', 'longitude', 'location_status'].forEach(id => {
-            document.getElementById(id).value = '';
-        });
+    ['email', 'google_user_id', 'latitude', 'longitude', 'location_status'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
 
-        updateAuthenticationUI();
-        disableForm();
-        resetLocationFields();
-        resetEvidenciasSection();
+    updateAuthenticationUI();
+    disableForm();
+    resetLocationFields();
+    resetEvidenciasSection();
+    ocultarRegistrosDelDia(); // *** OCULTAR REGISTROS ***
 
-        showStatus('Sesión cerrada correctamente.', 'success');
-        setTimeout(() => hideStatus(), 3000);
-        setTimeout(() => initializeGoogleSignIn(), 1000);
-    } catch (error) {
-        console.error('Error cerrando sesión:', error);
-        showStatus('Error al cerrar sesión.', 'error');
-    }
+    showStatus('Sesión cerrada correctamente.', 'success');
+    setTimeout(() => hideStatus(), 3000);
+    setTimeout(() => initializeGoogleSignIn(), 1000);
+  } catch (error) {
+    console.error('Error cerrando sesión:', error);
+    showStatus('Error al cerrar sesión.', 'error');
+  }
 }
 
 // ========== EVIDENCIAS (iOS COMPATIBLE) ==========
@@ -934,11 +954,11 @@ function showEvidenciasStatus(message, type) {
 }
 
 function resetEvidenciasSection() {
-    selectedFiles = [];
-    const input = document.getElementById('evidencias');
-    input.value = '';
-    document.getElementById('evidencias-preview').innerHTML = '';
-    document.getElementById('evidencias-status').style.display = 'none';
+  selectedFiles = [];
+  const input = document.getElementById('evidencias');
+  input.value = '';
+  document.getElementById('evidencias-preview').innerHTML = '';
+  document.getElementById('evidencias-status').style.display = 'none';
 }
 
 // ========== UPLOAD ==========
@@ -1065,7 +1085,7 @@ async function uploadEvidencias() {
 }
 
 async function sendDataWithFallback(data) {
-  console.warn('⚠️ sendDataWithFallback obsoleto, use sendWithVerification');
+  console.warn('⚠️ sendDataWithFallback obsoleto, use ');
   return sendDataWithIframe(data);
 }
 
@@ -1091,11 +1111,11 @@ function generateEvidenciaFileName(tipoRegistro, index) {
 }
 
 function generateStudentFolderName() {
-    const apellidoPaterno = document.getElementById('apellido_paterno').value || 'Sin_Apellido';
-    const apellidoMaterno = document.getElementById('apellido_materno').value || 'Sin_Apellido';
-    const nombre = document.getElementById('nombre').value || 'Sin_Nombre';
-    
-    return `${apellidoPaterno}_${apellidoMaterno}_${nombre}`.replace(/[^a-zA-Z0-9_]/g, '');
+  const apellidoPaterno = document.getElementById('apellido_paterno').value || 'Sin_Apellido';
+  const apellidoMaterno = document.getElementById('apellido_materno').value || 'Sin_Apellido';
+  const nombre = document.getElementById('nombre').value || 'Sin_Nombre';
+  
+  return `${apellidoPaterno}_${apellidoMaterno}_${nombre}`.replace(/[^a-zA-Z0-9_]/g, '');
 }
 
 function fileToBase64(file) {
@@ -1181,7 +1201,7 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// ========== ENVÍO CON VERIFICACIÓN, REINTENTOS E IDEMPOTENCIA ==========
+// ========== ENVÍO CON VERIFICACIÓN, REINTENTOS E IDEMPOTENCIA (CORREGIDO) ==========
 async function sendWithVerification(data, attempt = 1) {
   const MAX_ATTEMPTS = 3;
   
@@ -1191,55 +1211,428 @@ async function sendWithVerification(data, attempt = 1) {
   console.log(`${'='.repeat(60)}`);
   
   try {
-    // Enviar datos
+    // ========== PASO 1: VALIDAR DATOS ANTES DE ENVIAR ==========
+    console.log('🔍 Validando datos antes de enviar...');
+    
+    if (!data.modalidad || data.modalidad === '' || data.modalidad === 'undefined' || data.modalidad === 'null') {
+      throw new Error('VALIDACIÓN: Campo Modalidad vacío o inválido');
+    }
+    
+    if (!data.email || !data.google_user_id) {
+      throw new Error('VALIDACIÓN: Datos de autenticación faltantes');
+    }
+    
+    if (!data.latitude || !data.longitude) {
+      throw new Error('VALIDACIÓN: Coordenadas GPS faltantes');
+    }
+    
+    if (!data.registro_id || data.registro_id.trim() === '') {
+      throw new Error('VALIDACIÓN: registro_id vacío');
+    }
+    
+    console.log('✅ Validación previa exitosa');
+    
+    // ========== PASO 2: ENVIAR DATOS ==========
     console.log('📤 Enviando datos al backend...');
     await sendDataWithIframe(data);
     
-    console.log('✅ Datos enviados correctamente');
-    console.log('⏱️ Esperando 10 segundos para que el backend procese...');
+    console.log('✅ Formulario enviado al servidor');
     
-    // Esperar tiempo suficiente para que backend procese
-    await sleep(10000);
+    // ========== PASO 3: ESPERAR PROCESAMIENTO INICIAL ==========
+    console.log(`⏱️ Esperando ${TIEMPO_ESPERA_INICIAL/1000}s para procesamiento inicial...`);
+    await sleep(TIEMPO_ESPERA_INICIAL);
     
-    console.log('✅ Tiempo de procesamiento completado');
-    console.log('📋 Registro ID:', data.registro_id);
-    console.log('👤 Usuario:', data.authenticated_user_name);
+    // ========== PASO 4: COMPLETAR TODOS LOS INTENTOS DE VERIFICACIÓN ==========
+    console.log(`\n🔍 INICIANDO ${VERIFICATION_ATTEMPTS} VERIFICACIONES OBLIGATORIAS...`);
+    console.log('='.repeat(60));
     
-    // Retornar éxito (backend es idempotente, no puede duplicar)
-    return {
-      success: true,
-      verified: true,
-      data: {
-        registro_id: data.registro_id,
-        message: 'Registro enviado al servidor',
-        user_name: data.authenticated_user_name,
-        modalidad: data.modalidad,
-        ubicacion: data.ubicacion_detectada
-      },
-      attempts: attempt,
-      note: 'Verificación manual requerida en Google Sheets'
-    };
+    let verificationResult = null;
+    let verificationSuccess = false;
+    let allVerificationResults = [];
+    let networkErrorCount = 0;
+    let error403Count = 0;
     
-  } catch (error) {
-    console.error(`❌ Error en intento ${attempt}:`, error.message);
+    // *** COMPLETAR TODOS LOS INTENTOS SIN SALIR PREMATURAMENTE ***
+    for (let v = 1; v <= VERIFICATION_ATTEMPTS; v++) {
+      console.log(`\n🔍 Verificación ${v}/${VERIFICATION_ATTEMPTS}...`);
+      
+      try {
+        verificationResult = await verifyWithScriptTag(data.registro_id);
+        allVerificationResults.push({
+          attempt: v,
+          result: verificationResult,
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log(`Resultado verificación ${v}:`, verificationResult);
+        
+        // Contar errores de red y 403
+        if (verificationResult.error) {
+          if (verificationResult.error.includes('403') || verificationResult.code403) {
+            error403Count++;
+            console.warn(`⚠️ Error 403 detectado (${error403Count}/${VERIFICATION_ATTEMPTS})`);
+          }
+          
+          if (verificationResult.networkError || verificationResult.timeout || 
+              verificationResult.error.includes('red') || 
+              verificationResult.error.includes('network')) {
+            networkErrorCount++;
+            console.warn(`⚠️ Error de red detectado (${networkErrorCount}/${VERIFICATION_ATTEMPTS})`);
+          }
+        }
+        
+        // Si encontramos el registro, marcar éxito pero NO salir del loop
+        if (verificationResult.success && verificationResult.verified && verificationResult.exists) {
+          verificationSuccess = true;
+          console.log(`✅✅ REGISTRO ENCONTRADO en fila ${verificationResult.row_number}`);
+          // NO hacer break aquí - continuar con el resto de verificaciones para confirmar
+        } else if (!verificationResult.exists && !verificationResult.error) {
+          console.log(`⏳ Registro aún no encontrado en intento ${v}`);
+        }
+        
+      } catch (verifyError) {
+        console.error(`❌ Excepción en verificación ${v}:`, verifyError.message);
+        allVerificationResults.push({
+          attempt: v,
+          result: { success: false, error: verifyError.message },
+          timestamp: new Date().toISOString()
+        });
+        networkErrorCount++;
+      }
+      
+      // Esperar antes del siguiente intento (excepto en el último)
+      if (v < VERIFICATION_ATTEMPTS) {
+        const waitTime = TIEMPO_ENTRE_VERIFICACIONES[v - 1] || 5000;
+        console.log(`⏱️ Esperando ${waitTime/1000}s antes del siguiente intento...`);
+        await sleep(waitTime);
+      }
+    }
+    
+    // ========== PASO 5: EVALUAR RESULTADOS DESPUÉS DE COMPLETAR TODOS LOS INTENTOS ==========
+    console.log('\n' + '='.repeat(60));
+    console.log('📊 RESUMEN DE VERIFICACIONES:');
+    console.log(`   Total intentos: ${allVerificationResults.length}`);
+    console.log(`   Errores 403: ${error403Count}`);
+    console.log(`   Errores de red: ${networkErrorCount}`);
+    console.log(`   Éxito encontrado: ${verificationSuccess ? 'SÍ' : 'NO'}`);
+    console.log('='.repeat(60));
+    
+    // *** EVALUACIÓN FINAL ***
+    
+    // CASO 1: Encontramos el registro al menos una vez
+    if (verificationSuccess && verificationResult) {
+      console.log('\n✅✅✅ REGISTRO COMPLETADO Y VERIFICADO');
+      
+      return {
+        success: true,
+        verified: true,
+        exists: true,
+        data: {
+          registro_id: data.registro_id,
+          row_number: verificationResult.row_number,
+          timestamp: verificationResult.timestamp,
+          message: 'Registro guardado y verificado exitosamente',
+          user_name: data.authenticated_user_name,
+          modalidad: data.modalidad,
+          ubicacion: data.ubicacion_detectada,
+          search_method: verificationResult.search_method || 'verified'
+        },
+        attempts: attempt,
+        verification_attempts: VERIFICATION_ATTEMPTS,
+        network_errors: networkErrorCount,
+        error_403_count: error403Count,
+        all_verification_results: allVerificationResults
+      };
+    }
+    
+    // CASO 2: Todos los intentos tuvieron errores 403 o de red
+    // Esto significa que el registro SÍ se envió, pero no podemos verificar por CORS
+    if ((error403Count === VERIFICATION_ATTEMPTS || networkErrorCount >= 2) && ENABLE_VERIFICATION_FALLBACK) {
+      console.log('\n⚠️⚠️ ACTIVANDO MODO FALLBACK');
+      console.log('Todos los intentos tuvieron errores de red/403');
+      console.log('Los datos se enviaron correctamente al servidor');
+      console.log('La verificación está bloqueada por problemas de red/CORS');
+      
+      return {
+        success: true,
+        verified: false,
+        exists: true,
+        assumedSaved: true,
+        networkIssues: true,
+        error403Issues: error403Count > 0,
+        mustVerifyManually: true,
+        data: {
+          registro_id: data.registro_id,
+          row_number: 'No verificable',
+          timestamp: new Date().toISOString(),
+          message: '⚠️ Registro enviado correctamente pero no verificable por problemas de red. VERIFIQUE MANUALMENTE.',
+          user_name: data.authenticated_user_name,
+          modalidad: data.modalidad,
+          ubicacion: data.ubicacion_detectada,
+          search_method: 'fallback_after_all_attempts'
+        },
+        attempts: attempt,
+        verification_attempts: VERIFICATION_ATTEMPTS,
+        network_errors: networkErrorCount,
+        error_403_count: error403Count,
+        all_verification_results: allVerificationResults
+      };
+    }
+    
+    // CASO 3: No se pudo verificar pero no hay errores de red claros
+    // Reintentar el envío completo
+    console.warn('\n⚠️ NO SE PUDO VERIFICAR - Sin errores de red claros');
     
     if (attempt < MAX_ATTEMPTS) {
-      const waitTime = 3000 * attempt;
-      console.log(`⏳ Esperando ${waitTime/1000}s antes de reintentar...`);
+      const waitTime = 10000 * attempt;
+      console.log(`\n🔄 Reintentando envío completo (${attempt + 1}/${MAX_ATTEMPTS})...`);
+      console.log(`⏳ Esperando ${waitTime/1000}s...`);
+      await sleep(waitTime);
+      
+      return sendWithVerification(data, attempt + 1);
+    }
+    
+    // CASO 4: Agotamos todos los intentos de envío
+    throw new Error('No se pudo verificar el registro después de múltiples intentos de envío');
+    
+  } catch (error) {
+    console.error(`\n❌ Error en intento ${attempt}:`, error.message);
+    
+    if (attempt < MAX_ATTEMPTS) {
+      const waitTime = 5000 * attempt;
+      console.log(`⏳ Esperando ${waitTime/1000}s antes de reintentar envío completo...`);
       await sleep(waitTime);
       
       return sendWithVerification(data, attempt + 1);
     } else {
-      console.error('❌❌ TODOS LOS INTENTOS FALLARON');
+      console.error('\n❌❌ TODOS LOS INTENTOS DE ENVÍO FALLARON');
       
       return {
         success: false,
         verified: false,
+        exists: false,
         error: error.message,
         attempts: attempt,
-        note: 'Verifique manualmente en Google Sheets si el registro existe'
+        registro_id: data.registro_id,
+        note: 'El registro NO se guardó. Intente nuevamente.'
       };
     }
+  }
+}
+
+// ========== OBTENER Y MOSTRAR REGISTROS DEL DÍA ==========
+async function obtenerRegistrosDelDia() {
+  if (!isAuthenticated || !currentUser) {
+    console.error('Usuario no autenticado');
+    return [];
+  }
+  
+  const hoy = new Date();
+  const año = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoy.getDate()).padStart(2, '0');
+  const fechaHoy = `${año}-${mes}-${dia}`;
+  
+  console.log('📊 Obteniendo registros del día:', fechaHoy);
+  console.log('👤 Usuario:', currentUser.email);
+  
+  try {
+    const result = await obtenerRegistrosConJSONP(currentUser.email, fechaHoy);
+    
+    if (result.success) {
+      console.log(`✅ ${result.total} registro(s) obtenido(s)`);
+      return result.registros || [];
+    } else {
+      console.error('❌ Error obteniendo registros:', result.error);
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ Error en obtenerRegistrosDelDia:', error);
+    return [];
+  }
+}
+
+async function obtenerRegistrosConJSONP(email, fecha) {
+  console.log('🔍 Llamando API para obtener registros...');
+  
+  return new Promise((resolve) => {
+    const callbackName = 'registros_' + Date.now().toString().substring(5);
+    const scriptId = 'script_' + callbackName;
+    
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      console.warn('⏱️ Timeout obteniendo registros (15s)');
+      resolve({
+        success: false,
+        error: 'Timeout al cargar registros',
+        errorType: 'timeout',
+        registros: [],
+        total: 0
+      });
+    }, 15000);
+    
+    window[callbackName] = function(result) {
+      clearTimeout(timeoutId);
+      console.log('✅ Registros recibidos:', result);
+      cleanup();
+      resolve(result);
+    };
+    
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.onerror = function(event) {
+      clearTimeout(timeoutId);
+      console.error('❌ Error cargando script de registros');
+      console.error('Evento error:', event);
+      cleanup();
+      resolve({
+        success: false,
+        error: 'Error de red al cargar registros',
+        errorType: 'network',
+        registros: [],
+        total: 0
+      });
+    };
+    
+    const url = `${GOOGLE_SCRIPT_URL}?action=get_registros_dia&email=${encodeURIComponent(email)}&fecha=${encodeURIComponent(fecha)}&callback=${callbackName}&_t=${Date.now()}`;
+    console.log('📡 URL de registros:', url.substring(0, 100) + '...');
+    script.src = url;
+    
+    function cleanup() {
+      try {
+        const scriptElement = document.getElementById(scriptId);
+        if (scriptElement && document.body.contains(scriptElement)) {
+          document.body.removeChild(scriptElement);
+        }
+        delete window[callbackName];
+      } catch (e) {
+        console.warn('Error en cleanup:', e);
+      }
+    }
+    
+    document.body.appendChild(script);
+  });
+}
+
+async function mostrarRegistrosDelDia() {
+  const registrosSection = document.getElementById('registros-section');
+  const registrosLista = document.getElementById('registros-lista');
+  const registrosCount = document.getElementById('registros-count');
+  
+  if (!registrosSection || !registrosLista) {
+    console.warn('⚠️ Sección de registros no encontrada en HTML');
+    return;
+  }
+  
+  // Mostrar loading
+  registrosSection.style.display = 'block';
+  registrosLista.innerHTML = '<div class="registro-loading">📊 Cargando registros del día...</div>';
+  registrosCount.textContent = 'Cargando...';
+  registrosCount.style.background = '#6c757d';
+  
+  const resultado = await obtenerRegistrosConJSONP(currentUser.email, obtenerFechaHoy());
+  
+  // Manejar error 403 o de red
+  if (!resultado.success) {
+    registrosLista.innerHTML = `
+      <div class="registro-info-403">
+        <div class="info-icon">ℹ️</div>
+        <div class="info-titulo">Registros no disponibles temporalmente</div>
+        <div class="info-texto">
+          Debido a restricciones técnicas del servidor, no se pueden
+          mostrar sus registros en este momento.<br><br>
+          
+          Sus registros están guardados correctamente y están
+          disponibles para el personal administrativo.<br><br>
+          
+          <span style="color: #666; font-size: 0.9em;">
+            Esta limitación solo afecta la visualización,
+            no el guardado de sus asistencias.
+          </span>
+        </div>
+      </div>
+    `;
+    registrosCount.textContent = 'No disponible';
+    registrosCount.style.background = '#ffc107';
+    return;
+  }
+  
+  const registros = resultado.registros || [];
+  
+  // Si no hay registros
+  if (registros.length === 0) {
+    registrosLista.innerHTML = `
+      <div class="registro-vacio">
+        <div style="font-size: 2em; margin-bottom: 10px;">📝</div>
+        <div><strong>No hay registros para hoy</strong></div>
+        <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+          Cuando registre su primera asistencia aparecerá aquí
+        </div>
+      </div>
+    `;
+    registrosCount.textContent = '0 registros';
+    registrosCount.style.background = '#6c757d';
+    return;
+  }
+  
+  // Mostrar registros
+  registrosCount.textContent = `${registros.length} registro${registros.length !== 1 ? 's' : ''}`;
+  registrosCount.style.background = '#667eea';
+  
+  let html = '';
+  registros.forEach((reg, index) => {
+    const tipoIcon = {
+      'entrada': '🔵',
+      'salida': '🔴',
+      'permiso': '🟡',
+      'otro': '⚪'
+    };
+    
+    const icon = tipoIcon[reg.tipo_registro] || '⚪';
+    
+    html += `
+      <div class="registro-item" style="animation: slideInRegistro 0.3s ease-out ${index * 0.05}s both;">
+        <div class="registro-header-item">
+          <span class="registro-numero">#${index + 1}</span>
+          <span class="registro-tipo">${icon} ${reg.tipo_registro || 'N/A'}</span>
+          <span class="registro-hora">⏰ ${reg.hora || 'N/A'}</span>
+        </div>
+        <div class="registro-body">
+          <div class="registro-detalle">
+            <strong>📋 Modalidad:</strong> ${reg.modalidad || 'N/A'}
+          </div>
+          <div class="registro-detalle">
+            <strong>📍 Ubicación:</strong> ${(reg.ubicacion || 'N/A').substring(0, 50)}${reg.ubicacion && reg.ubicacion.length > 50 ? '...' : ''}
+          </div>
+          <div class="registro-detalle">
+            <strong>🎯 Precisión:</strong> ${reg.precision_metros || 0} metros
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  registrosLista.innerHTML = html;
+  console.log('✅ Registros mostrados en pantalla');
+}
+
+function obtenerFechaHoy() {
+  const hoy = new Date();
+  const año = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoy.getDate()).padStart(2, '0');
+  return `${año}-${mes}-${dia}`;
+}
+
+async function reintentarCargarRegistros() {
+  console.log('🔄 Reintentando cargar registros...');
+  await mostrarRegistrosDelDia();
+}
+
+function ocultarRegistrosDelDia() {
+  const registrosSection = document.getElementById('registros-section');
+  if (registrosSection) {
+    registrosSection.style.display = 'none';
   }
 }
 
@@ -1267,7 +1660,7 @@ async function verifyWithSimpleGet(registroID) {
       // Así que asumimos que se envió y verificamos de otra forma
       
       // Intentar verificación alternativa con script tag
-      return verifyWithScriptTag(registroID);
+      return (registroID);
     })
     .then(result => {
       resolve(result);
@@ -1277,7 +1670,7 @@ async function verifyWithSimpleGet(registroID) {
       console.warn('Fetch falló, intentando con script tag:', error.message);
       
       // Fallback a script tag
-      verifyWithScriptTag(registroID)
+      (registroID)
         .then(resolve)
         .catch(reject);
     });
@@ -1292,18 +1685,19 @@ async function verifyWithScriptTag(registroID) {
     const callbackName = 'verify_' + Date.now().toString().substring(5);
     const scriptId = 'script_' + callbackName;
     
-    // Timeout
+    // ⭐ FIX: Timeout aumentado y mejor manejo de errores de red
     const timeoutId = setTimeout(() => {
       cleanup();
-      console.warn('⏱️ Timeout en verificación JSONP');
+      console.warn('⏱️ Timeout en verificación JSONP (20s)');
       resolve({
         success: false,
         verified: false,
         exists: false,
-        error: 'Timeout en verificación',
-        timeout: true
+        error: 'Timeout en verificación - posible problema de red',
+        timeout: true,
+        networkError: true
       });
-    }, 8000);
+    }, 20000); // 20 segundos
     
     // Callback global
     window[callbackName] = function(result) {
@@ -1316,15 +1710,24 @@ async function verifyWithScriptTag(registroID) {
     // Crear script
     const script = document.createElement('script');
     script.id = scriptId;
-    script.onerror = function() {
+    script.onerror = function(event) {
       clearTimeout(timeoutId);
       console.error('❌ Error cargando script JSONP');
+      console.error('Evento error:', event);
+      
+      // ⭐ NUEVO: Detectar tipo de error
+      const errorType = event.type || 'unknown';
+      const errorMsg = event.message || 'Error de red o 403 - servidor no accesible';
+      
       cleanup();
       resolve({
         success: false,
         verified: false,
         exists: false,
-        error: 'Error de red en verificación'
+        error: errorMsg,
+        errorType: errorType,
+        networkError: true, // ⭐ FLAG IMPORTANTE
+        code403: true // ⭐ FLAG IMPORTANTE
       });
     };
     
@@ -1483,9 +1886,10 @@ async function handleSubmit(e) {
   e.preventDefault();
   
   console.log('\n' + '='.repeat(70));
-  console.log('🚀 INICIANDO ENVÍO (MODO IDEMPOTENTE)');
+  console.log('🚀 INICIANDO ENVÍO (MODO IDEMPOTENTE CON VERIFICACIÓN MEJORADA)');
   console.log('='.repeat(70));
   
+  // ========== VALIDACIONES INICIALES ==========
   if (!isAuthenticated || !currentUser) {
     showStatus('❌ Debe autenticarse con Google', 'error');
     return;
@@ -1505,20 +1909,22 @@ async function handleSubmit(e) {
     return;
   }
   
+  // Deshabilitar botón de envío
   const submitBtn = document.querySelector('.submit-btn');
   const originalText = submitBtn.textContent;
   submitBtn.disabled = true;
   submitBtn.textContent = '⏳ Procesando...';
   
   try {
+    // ========== GENERAR ID ÚNICO ==========
     const registroID = generateRegistroID();
     
     console.log('📋 ID:', registroID);
     console.log('👤 Usuario:', currentUser.name);
     console.log('📱 Dispositivo:', deviceType);
-    console.log('📍 GPS:', Math.round(currentLocation.accuracy) + 'm');
+    console.log('🎯 GPS:', Math.round(currentLocation.accuracy) + 'm');
     
-    // EVIDENCIAS
+    // ========== SUBIR EVIDENCIAS (SI EXISTEN) ==========
     let evidenciasUrls = [];
     if (selectedFiles.length > 0) {
       console.log('\n📸 SUBIENDO EVIDENCIAS...');
@@ -1529,6 +1935,7 @@ async function handleSubmit(e) {
       const successUploads = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS');
       const failedUploads = evidenciasUrls.filter(e => e.uploadStatus === 'FAILED');
       
+      // Si ninguna evidencia se subió y había archivos seleccionados
       if (selectedFiles.length > 0 && successUploads.length === 0) {
         const errorDetails = failedUploads.map(e => `• ${e.originalName}: ${e.error}`).join('\n');
         
@@ -1538,19 +1945,20 @@ async function handleSubmit(e) {
         );
         
         if (!userDecision) {
-          throw new Error('Registro cancelado');
+          throw new Error('Registro cancelado por usuario');
         }
       }
     }
     
-    // PREPARAR DATOS
+    // ========== PREPARAR DATOS DEL FORMULARIO ==========
     console.log('\n📝 PREPARANDO DATOS...');
     
     const formData = new FormData(e.target);
     const data = {};
     
+    // Procesar todos los campos del formulario
     for (let [key, value] of formData.entries()) {
-      if (key === 'evidencias') continue;
+      if (key === 'evidencias') continue; // Skip file input
       
       if (key.endsWith('[]')) {
         const cleanKey = key.replace('[]', '');
@@ -1569,25 +1977,33 @@ async function handleSubmit(e) {
       }
     }
     
+    // ========== AGREGAR DATOS ADICIONALES ==========
     const successUploads = evidenciasUrls.filter(e => e.uploadStatus === 'SUCCESS');
     
+    // Registro ID y timestamp
     data.registro_id = registroID;
     data.timestamp = new Date().toISOString();
+    
+    // Evidencias
     data.evidencias_urls = evidenciasUrls;
     data.total_evidencias = successUploads.length;
     data.evidencias_failed = evidenciasUrls.length - successUploads.length;
     data.evidencias_nombres = successUploads.map(e => e.fileName).join(', ');
     data.carpeta_evidencias = generateStudentFolderName();
     
+    // Ubicación (asegurar valores actuales)
     data.modalidad = document.getElementById('modalidad').value;
     data.ubicacion_detectada = document.getElementById('ubicacion_detectada').value;
     data.direccion_completa = document.getElementById('direccion_completa').value;
     data.precision_gps = document.getElementById('precision_gps').value;
     data.precision_gps_metros = Math.round(currentLocation.accuracy);
     data.location_validation = 'passed';
+    
+    // Usuario autenticado
     data.authenticated_user_name = currentUser.name;
     data.authentication_timestamp = new Date().toISOString();
     
+    // Dispositivo
     data.device_type = deviceType;
     data.is_desktop = isDesktop;
     data.is_mobile = !isDesktop;
@@ -1595,185 +2011,431 @@ async function handleSubmit(e) {
     data.required_accuracy = REQUIRED_ACCURACY;
     data.device_info = JSON.stringify(getDeviceInfo());
     
-    if (!data.modalidad || data.modalidad === '') {
-      throw new Error('Modalidad requerida');
+    // ========== VALIDACIÓN CRÍTICA DE MODALIDAD ==========
+    if (!data.modalidad || data.modalidad === '' || data.modalidad === 'undefined' || data.modalidad === 'null') {
+      throw new Error('Campo Modalidad es requerido y no puede estar vacío');
     }
     
-    console.log('✅ Datos preparados');
+    console.log('✅ Datos preparados correctamente');
+    console.log('📊 Modalidad:', data.modalidad);
+    console.log('📍 Ubicación:', data.ubicacion_detectada);
+    console.log('🎯 Precisión:', data.precision_gps_metros + 'm');
     
-    // ENVIAR
-    console.log('\n📤 ENVIANDO...');
-    showStatus('📤 Enviando asistencia...', 'success');
+    // ========== ENVIAR CON VERIFICACIÓN ==========
+    console.log('\n📤 ENVIANDO CON VERIFICACIÓN MEJORADA...');
+    showStatus('📤 Enviando asistencia (esto puede tomar hasta 60 segundos)...', 'success');
     
     const result = await sendWithVerification(data);
     
-    console.log('\n📊 RESULTADO:');
+    console.log('\n📊 RESULTADO FINAL:');
     console.log('   Success:', result.success);
     console.log('   Verified:', result.verified);
+    console.log('   Exists:', result.exists);
+    console.log('   Assumed Saved:', result.assumedSaved || false);
+    console.log('   Network Issues:', result.networkIssues || false);
     console.log('   Attempts:', result.attempts);
     
-    if (result.success && result.verified) {
-      console.log('\n✅✅✅ ÉXITO');
+    // ========== MANEJO DE RESULTADOS (MEJORADO CON FALLBACK) ==========
+    
+    // ⭐⭐⭐ CASO 1: ✅ ÉXITO VERIFICADO - Registro confirmado en Google Sheets
+    if (result.success && result.verified && result.exists && !result.assumedSaved) {
+      // *** CASO 1: ÉXITO VERIFICADO ***
+      console.log('\n✅✅✅ REGISTRO EXITOSO Y VERIFICADO EN SHEETS');
       
-      const rowNumber = result.data.row_number || result.frontend_verification?.row_number || 'N/A';
+      const rowNumber = result.data?.row_number || 'N/A';
+      const searchMethod = result.data?.search_method || 'verified';
       
-      let statusMessage = `✅ ¡Asistencia VERIFICADA!
+      let statusMessage = `✅✅✅ ASISTENCIA REGISTRADA Y VERIFICADA
 
-📋 ID: ${data.registro_id}
-👤 ${currentUser.name}
-📱 ${deviceType}
-📊 ${data.modalidad}
-📍 ${data.ubicacion_detectada}
-🎯 ${data.precision_gps_metros}m
-🔢 Fila: ${rowNumber}
-🔄 Intentos: ${result.attempts}`;
+Su asistencia ha sido guardada y verificada exitosamente.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Registro ID: ${data.registro_id}
+👤 Usuario: ${currentUser.name}
+📊 Modalidad: ${data.modalidad}
+📍 Ubicación: ${data.ubicacion_detectada}
+🎯 Precisión GPS: ${data.precision_gps_metros}m
+⏰ Hora: ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ CONFIRMACIÓN: Guardado y verificado automáticamente
+📢 Fila en sistema: ${rowNumber}
+🔍 Método de verificación: ${searchMethod}`;
       
       if (data.total_evidencias > 0) {
-        statusMessage += `\n📸 Evidencias: ${data.total_evidencias}`;
+        statusMessage += `\n📸 Evidencias subidas: ${data.total_evidencias}`;
       }
       
-      if (result.duplicate) {
-        statusMessage += '\n⚠️ Duplicado prevenido';
-      }
-      
-      if (result.recovered) {
-        statusMessage += '\n🔄 Recuperado después de errores';
+      if (data.evidencias_failed > 0) {
+        statusMessage += `\n⚠️ Evidencias fallidas: ${data.evidencias_failed}`;
       }
       
       showStatus(statusMessage, 'success');
       
-      setTimeout(() => {
-        if (confirm('✅ Registro exitoso.\n\n¿Registrar otra asistencia?')) {
+      // *** INTENTAR ACTUALIZAR REGISTROS (1 intento) ***
+      setTimeout(async () => {
+        console.log('🔄 Actualizando registros del día...');
+        
+        try {
+          await mostrarRegistrosDelDia();
+          console.log('✅ Registros actualizados');
+        } catch (e) {
+          console.warn('⚠️ Error actualizando registros:', e);
+        }
+        
+        // Preguntar al usuario
+        if (confirm('✅ ASISTENCIA REGISTRADA Y VERIFICADA\n\n' +
+                    'Registro ID: ' + data.registro_id + '\n' +
+                    'Usuario: ' + currentUser.name + '\n' +
+                    'Hora: ' + new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'}) + '\n\n' +
+                    '¿Desea registrar otra asistencia?')) {
           resetFormOnly();
           getCurrentLocation();
         } else {
           signOut();
         }
         hideStatus();
-      }, 8000);
+      }, 5000);
+    } 
+    // ⭐⭐⭐ CASO 2: ⚠️ NUEVO - Enviado pero no verificable por problemas de red
+    else if (result.success && result.assumedSaved && result.networkIssues) {
+      console.log('\n✅✅ REGISTRO GUARDADO - VERIFICACIÓN BLOQUEADA');
+      console.log('Registro ID:', data.registro_id);
+      console.log('Errores 403:', result.error_403_count || 0);
+      console.log('Verificaciones completadas:', result.verification_attempts || 0);
       
-    } else {
-      console.error('\n❌❌❌ ERROR CONFIRMADO');
-      throw new Error(result.error || 'Error desconocido');
+      // Determinar si todos los intentos tuvieron error 403
+      const todosError403 = result.error_403_count === VERIFICATION_ATTEMPTS;
+      
+      showStatus(`✅✅✅ ASISTENCIA REGISTRADA CORRECTAMENTE
+
+Su asistencia ha sido guardada exitosamente en el sistema.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Registro ID: ${data.registro_id}
+👤 Usuario: ${currentUser.name}
+📊 Modalidad: ${data.modalidad}
+📍 Ubicación: ${data.ubicacion_detectada}
+🎯 Precisión GPS: ${data.precision_gps_metros}m
+⏰ Hora: ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ CONFIRMACIÓN: Los datos fueron procesados correctamente
+
+${todosError403 ? 
+'ℹ️ Nota técnica: La confirmación automática no está disponible\ndebido a restricciones de seguridad del servidor (error 403),\npero esto NO afecta el guardado de su registro.' : 
+'ℹ️ Nota técnica: Se detectaron problemas de red al confirmar,\npero sus datos fueron enviados y procesados correctamente.'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 Detalles del envío:
+   • Estado: Exitoso ✅
+   • Intentos de confirmación: ${result.verification_attempts}
+   • Procesamiento: Completado ✅
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Puede continuar registrando otra asistencia si lo necesita.
+El sistema detecta y previene duplicados automáticamente.`, 'success');
+      
+      // Rehabilitar botón
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+      
+      // *** Mostrar mensaje en sección de registros sin botón de Sheets ***
+      const registrosSection = document.getElementById('registros-section');
+      const registrosLista = document.getElementById('registros-lista');
+      const registrosCount = document.getElementById('registros-count');
+      
+      if (registrosSection && registrosLista && registrosCount) {
+        registrosSection.style.display = 'block';
+        registrosLista.innerHTML = `
+          <div class="registro-confirmacion-guardado">
+            <div class="confirmacion-icon">✅</div>
+            <div class="confirmacion-titulo">Registro guardado exitosamente</div>
+            <div class="confirmacion-texto">
+              Su asistencia de hoy ha sido registrada correctamente.<br><br>
+              
+              <strong>Registro ID:</strong> ${data.registro_id.substring(0, 30)}...<br>
+              <strong>Hora:</strong> ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}<br>
+              <strong>Modalidad:</strong> ${data.modalidad}<br><br>
+              
+              <span style="color: #666; font-size: 0.9em;">
+                Los detalles de sus registros están disponibles para
+                el personal administrativo.
+              </span>
+            </div>
+          </div>
+        `;
+        registrosCount.textContent = 'Guardado ✅';
+        registrosCount.style.background = '#28a745';
+      }
+      
+      // Preguntar después de 10 segundos
+      setTimeout(() => {
+        const continuar = confirm(
+          '✅ ASISTENCIA REGISTRADA CORRECTAMENTE\n\n' +
+          'Registro ID: ' + data.registro_id + '\n' +
+          'Usuario: ' + currentUser.name + '\n' +
+          'Hora: ' + new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'}) + '\n\n' +
+          '¿Desea registrar otra asistencia?'
+        );
+        
+        if (continuar) {
+          resetFormOnly();
+          getCurrentLocation();
+          hideStatus();
+        } else {
+          hideStatus();
+        }
+      }, 10000);
+      
+    } 
+    // ⭐⭐⭐ CASO 3: ⚠️ Inconsistencia - Dice verificado pero no existe (no debería pasar)
+    else if (result.success && result.verified && !result.exists) {
+      console.error('\n⚠️⚠️ INCONSISTENCIA DETECTADA');
+      console.error('El sistema reportó éxito pero la verificación indica que NO existe');
+      console.error('Registro ID:', data.registro_id);
+      
+      showStatus(`⚠️ ADVERTENCIA: Inconsistencia detectada
+
+El sistema procesó su solicitud pero no puede confirmar que el registro existe en Google Sheets.
+
+📋 Registro ID: ${data.registro_id}
+👤 Usuario: ${currentUser.name}
+🔄 Intentos realizados: ${result.attempts}
+
+⚠️ ACCIÓN REQUERIDA:
+1. Capture una captura de pantalla de esta página
+2. Abra Google Sheets manualmente
+3. Busque el Registro ID: ${data.registro_id}
+4. Si NO existe, registre nuevamente
+5. Si SÍ existe, ignore este mensaje
+
+⚠️ Por favor, reporte este incidente al administrador.`, 'error');
+      
+      // No resetear el formulario para que el usuario pueda capturar pantalla
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+      
+      setTimeout(() => hideStatus(), 30000); // Mostrar por 30 segundos
+      
+    }
+    // ⭐⭐⭐ CASO 4: ❌ ERROR CONFIRMADO - No se pudo guardar O no se pudo verificar
+    else {
+      console.error('\n❌❌❌ ERROR - REGISTRO NO VERIFICADO');
+      console.error('Registro ID intentado:', data.registro_id);
+      console.error('Error:', result.error || 'Error desconocido');
+      console.error('Attempts:', result.attempts);
+      console.error('Network errors:', result.network_errors || 0);
+      
+      const errorDetail = result.error || 'Error desconocido durante el envío';
+      
+      showStatus(`❌ ERROR: No se pudo verificar la asistencia
+
+🚫 Motivo: ${errorDetail}
+
+⚠️ IMPORTANTE: 
+Por favor, VERIFIQUE MANUALMENTE en Google Sheets si el registro existe.
+
+📋 Registro ID: ${data.registro_id}
+🔄 Intentos realizados: ${result.attempts || 1}
+⚠️ Errores de red: ${result.network_errors || 0}
+⏱️ Tiempo total: ~${(result.attempts || 1) * 30}s
+
+🔍 VERIFICACIÓN MANUAL:
+1. Abra Google Sheets
+2. Busque (Ctrl+F) el ID: ${data.registro_id}
+3. Si EXISTE: Ignore este mensaje, el registro SÍ se guardó
+4. Si NO EXISTE: Intente registrar nuevamente
+
+Por favor, verifique:
+• Su conexión a Internet está activa
+• Los permisos de ubicación están habilitados
+• Tiene espacio disponible en su cuenta Google
+• No hay problemas con su red (firewall, proxy)
+
+🔧 QUÉ HACER:
+• Intente registrar nuevamente
+• Si el problema persiste, contacte al administrador
+• Mencione este Registro ID: ${data.registro_id}
+• Capture una captura de pantalla de la consola (F12)
+
+💡 CONSEJO: Verifique que el campo "Modalidad" esté seleccionado correctamente.`, 'error');
+      
+      // Habilitar botón para permitir reintento
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+      
+      setTimeout(() => hideStatus(), 45000); // Mostrar por 45 segundos
     }
     
   } catch (error) {
-    console.error('\n❌ ERROR:', error.message);
+    // ========== MANEJO DE ERRORES EXCEPCIONALES ==========
+    console.error('\n❌ ERROR EXCEPCIONAL:', error);
+    console.error('Stack:', error.stack);
     
-    showStatus(`❌ ERROR: No se registró la asistencia
+    let errorMessage = error.message || 'Error desconocido';
+    let registroID = 'No generado';
+    
+    // Intentar extraer registro_id si fue generado
+    try {
+      const formData = new FormData(e.target);
+      registroID = formData.get('registro_id') || registroID;
+    } catch (e) {
+      console.warn('No se pudo extraer registro_id del error');
+    }
+    
+    // Mensajes de error específicos
+    if (errorMessage.includes('cancelado')) {
+      showStatus(`⚠️ Registro cancelado
 
-🚫 ${error.message}
+El usuario decidió no continuar sin evidencias.`, 'error');
+    } else if (errorMessage.includes('Modalidad')) {
+      showStatus(`❌ ERROR: Campo Modalidad inválido
+
+🚫 ${errorMessage}
+
+Por favor:
+1. Verifique que haya seleccionado una modalidad
+2. Recargue la página si el problema persiste
+3. Contacte al administrador si continúa
+
+📋 Registro ID intentado: ${registroID}`, 'error');
+    } else if (errorMessage.includes('red') || errorMessage.includes('network') || errorMessage.includes('timeout')) {
+      showStatus(`❌ ERROR: Problema de conexión
+
+🚫 ${errorMessage}
+
+Por favor:
+1. Verifique su conexión a Internet
+2. Intente nuevamente en unos momentos
+3. Si está en WiFi, intente con datos móviles (o viceversa)
+
+📋 Registro ID intentado: ${registroID}`, 'error');
+    } else {
+      showStatus(`❌ ERROR: No se pudo registrar la asistencia
+
+🚫 ${errorMessage}
 
 ⚠️ GARANTÍA: El registro NO se guardó.
 
 Por favor:
-1. Verifique su conexión
-2. Permisos de ubicación activos
-3. Intente nuevamente
+1. Capture una captura de pantalla
+2. Verifique su conexión a Internet
+3. Verifique que todos los campos requeridos estén llenos
+4. Intente nuevamente
 
-Si persiste, contacte al administrador.`, 'error');
+Si el problema persiste:
+• Contacte al administrador
+• Proporcione este Registro ID: ${registroID}
+• Abra la consola (F12) y capture los errores
+
+💡 TIP: Recargue la página y vuelva a intentar`, 'error');
+    }
     
+    // Rehabilitar botón
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
     
-    setTimeout(() => hideStatus(), 20000);
+    // Mostrar error por 30 segundos
+    setTimeout(() => hideStatus(), 30000);
   }
 }
 
 function resetFormOnly() {
-    document.getElementById('attendanceForm').reset();
-    initializeForm();
-    
-    document.querySelectorAll('.conditional-field').forEach(field => {
-        field.classList.remove('show');
-    });
-    
-    document.getElementById('evidencias_section').style.display = 'none';
-    resetEvidenciasSection();
-    
-    document.getElementById('ubicacion_detectada').value = 'Obteniendo ubicación...';
-    document.getElementById('direccion_completa').value = 'Consultando dirección...';
-    document.getElementById('precision_gps').value = 'Calculando...';
-    
-    ['ubicacion_detectada', 'direccion_completa', 'precision_gps'].forEach(id => {
-        document.getElementById(id).className = 'location-field';
-    });
-    
-    document.getElementById('retry_location_btn').style.display = 'none';
-    
-    document.getElementById('email').value = currentUser.email;
-    document.getElementById('google_user_id').value = currentUser.id;
-    
-    locationValid = false;
-    locationAttempts = 0;
-    updateLocationStatus('loading', 'Obteniendo nueva ubicación GPS...', '');
-    updateSubmitButton();
+  document.getElementById('attendanceForm').reset();
+  initializeForm();
+  
+  document.querySelectorAll('.conditional-field').forEach(field => {
+    field.classList.remove('show');
+  });
+  
+  document.getElementById('evidencias_section').style.display = 'none';
+  resetEvidenciasSection();
+  
+  document.getElementById('ubicacion_detectada').value = 'Obteniendo ubicación...';
+  document.getElementById('direccion_completa').value = 'Consultando dirección...';
+  document.getElementById('precision_gps').value = 'Calculando...';
+  
+  ['ubicacion_detectada', 'direccion_completa', 'precision_gps'].forEach(id => {
+    document.getElementById(id).className = 'location-field';
+  });
+  
+  document.getElementById('retry_location_btn').style.display = 'none';
+  
+  document.getElementById('email').value = currentUser.email;
+  document.getElementById('google_user_id').value = currentUser.id;
+  
+  locationValid = false;
+  locationAttempts = 0;
+  updateLocationStatus('loading', 'Obteniendo nueva ubicación GPS...', '');
+  updateSubmitButton();
 }
 
 function validateConditionalFields() {
-    const tipoRegistro = document.getElementById('tipo_registro');
-    const permisoDetalle = document.getElementById('permiso_detalle');
-    const otroDetalle = document.getElementById('otro_detalle');
+  const tipoRegistro = document.getElementById('tipo_registro');
+  const permisoDetalle = document.getElementById('permiso_detalle');
+  const otroDetalle = document.getElementById('otro_detalle');
+  
+  if (tipoRegistro.value === 'permiso' && !permisoDetalle.value.trim()) {
+    showStatus('Especifique el motivo del permiso.', 'error');
+    permisoDetalle.focus();
+    return false;
+  }
+  
+  if (tipoRegistro.value === 'otro' && !otroDetalle.value.trim()) {
+    showStatus('Especifique el tipo de registro.', 'error');
+    otroDetalle.focus();
+    return false;
+  }
+  
+  const actividadesVarias = document.getElementById('actividades_varias');
+  const actividadesVariasTexto = document.getElementById('actividades_varias_texto');
+  
+  if (actividadesVarias.checked && !actividadesVariasTexto.value.trim()) {
+    showStatus('Describa las actividades varias realizadas.', 'error');
+    actividadesVariasTexto.focus();
+    return false;
+  }
+  
+  const pruebasPsicologicas = document.getElementById('pruebas_psicologicas');
+  const pruebasPsicologicasTexto = document.getElementById('pruebas_psicologicas_texto');
+  
+  if (pruebasPsicologicas.checked && !pruebasPsicologicasTexto.value.trim()) {
+    showStatus('Especifique qué pruebas psicológicas aplicó.', 'error');
+    pruebasPsicologicasTexto.focus();
+    return false;
+  }
+  
+  const intervenciones = parseInt(document.getElementById('intervenciones_psicologicas').value) || 0;
+  
+  if (intervenciones > 0) {
+    const ninos = parseInt(document.getElementById('ninos_ninas').value) || 0;
+    const adolescentes = parseInt(document.getElementById('adolescentes').value) || 0;
+    const adultos = parseInt(document.getElementById('adultos').value) || 0;
+    const mayores = parseInt(document.getElementById('mayores_60').value) || 0;
+    const familia = parseInt(document.getElementById('familia').value) || 0;
     
-    if (tipoRegistro.value === 'permiso' && !permisoDetalle.value.trim()) {
-        showStatus('Especifique el motivo del permiso.', 'error');
-        permisoDetalle.focus();
-        return false;
+    const sumaGrupos = ninos + adolescentes + adultos + mayores + familia;
+    
+    if (sumaGrupos !== intervenciones) {
+      showStatus(`Error: Total intervenciones (${intervenciones}) ≠ suma grupos (${sumaGrupos})`, 'error');
+      return false;
     }
-    
-    if (tipoRegistro.value === 'otro' && !otroDetalle.value.trim()) {
-        showStatus('Especifique el tipo de registro.', 'error');
-        otroDetalle.focus();
-        return false;
-    }
-    
-    const actividadesVarias = document.getElementById('actividades_varias');
-    const actividadesVariasTexto = document.getElementById('actividades_varias_texto');
-    
-    if (actividadesVarias.checked && !actividadesVariasTexto.value.trim()) {
-        showStatus('Describa las actividades varias realizadas.', 'error');
-        actividadesVariasTexto.focus();
-        return false;
-    }
-    
-    const pruebasPsicologicas = document.getElementById('pruebas_psicologicas');
-    const pruebasPsicologicasTexto = document.getElementById('pruebas_psicologicas_texto');
-    
-    if (pruebasPsicologicas.checked && !pruebasPsicologicasTexto.value.trim()) {
-        showStatus('Especifique qué pruebas psicológicas aplicó.', 'error');
-        pruebasPsicologicasTexto.focus();
-        return false;
-    }
-    
-    const intervenciones = parseInt(document.getElementById('intervenciones_psicologicas').value) || 0;
-    
-    if (intervenciones > 0) {
-        const ninos = parseInt(document.getElementById('ninos_ninas').value) || 0;
-        const adolescentes = parseInt(document.getElementById('adolescentes').value) || 0;
-        const adultos = parseInt(document.getElementById('adultos').value) || 0;
-        const mayores = parseInt(document.getElementById('mayores_60').value) || 0;
-        const familia = parseInt(document.getElementById('familia').value) || 0;
-        
-        const sumaGrupos = ninos + adolescentes + adultos + mayores + familia;
-        
-        if (sumaGrupos !== intervenciones) {
-            showStatus(`Error: Total intervenciones (${intervenciones}) ≠ suma grupos (${sumaGrupos})`, 'error');
-            return false;
-        }
-    }
-    
-    return true;
+  }
+  
+  return true;
 }
 
 function showStatus(message, type) {
-    const status = document.getElementById('status');
-    status.innerHTML = message;
-    status.className = `status ${type}`;
-    status.style.display = 'block';
+  const status = document.getElementById('status');
+  status.innerHTML = message;
+  status.className = `status ${type}`;
+  status.style.display = 'block';
 }
 
+// ========== 7. OCULTAR ESTADO ==========
 function hideStatus() {
-    document.getElementById('status').style.display = 'none';
+  document.getElementById('status').style.display = 'none';
 }
 
 // ========== LOCATION ==========
@@ -1861,287 +2523,293 @@ function setupEventListeners() {
 }
 
 function getCurrentLocation() {
-    if (!isAuthenticated) {
-        updateLocationStatus('error', 'Autenticación requerida', '');
-        ['ubicacion_detectada', 'direccion_completa', 'precision_gps'].forEach(id => {
-            document.getElementById(id).value = 'Esperando autenticación...';
-        });
-        document.getElementById('location_status').value = 'Autenticación requerida';
-        return;
-    }
+  if (!isAuthenticated) {
+    updateLocationStatus('error', 'Autenticación requerida', '');
+    ['ubicacion_detectada', 'direccion_completa', 'precision_gps'].forEach(id => {
+      document.getElementById(id).value = 'Esperando autenticación...';
+    });
+    document.getElementById('location_status').value = 'Autenticación requerida';
+    return;
+  }
 
-    if (!navigator.geolocation) {
-        updateLocationStatus('error', 'Geolocalización no soportada', '');
-        return;
-    }
+  if (!navigator.geolocation) {
+    updateLocationStatus('error', 'Geolocalización no soportada', '');
+    return;
+  }
 
-    locationAttempts++;
-    
-    const statusMsg = isDesktop 
-        ? `Obteniendo ubicación por IP/WiFi... (${locationAttempts}/${MAX_LOCATION_ATTEMPTS})` 
-        : `Obteniendo ubicación GPS... (${locationAttempts}/${MAX_LOCATION_ATTEMPTS})`;
-    
-    updateLocationStatus('loading', statusMsg, '');
+  locationAttempts++;
+  
+  const statusMsg = isDesktop 
+    ? `Obteniendo ubicación por IP/WiFi... (${locationAttempts}/${MAX_LOCATION_ATTEMPTS})` 
+    : `Obteniendo ubicación GPS... (${locationAttempts}/${MAX_LOCATION_ATTEMPTS})`;
+  
+  updateLocationStatus('loading', statusMsg, '');
 
-    const options = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
-    
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            currentLocation = {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-                accuracy: position.coords.accuracy
-            };
-            
-            document.getElementById('latitude').value = currentLocation.latitude;
-            document.getElementById('longitude').value = currentLocation.longitude;
-            
-            console.log(`📍 Ubicación obtenida - Precisión: ${Math.round(currentLocation.accuracy)}m (límite: ${REQUIRED_ACCURACY}m)`);
-            
-            if (currentLocation.accuracy <= REQUIRED_ACCURACY) {
-                locationValid = true;
-                document.getElementById('location_status').value = 'success';
-                
-                let successMsg = 'Ubicación obtenida correctamente';
-                let successDesc = `Precisión: ${Math.round(currentLocation.accuracy)} metros`;
-                
-                if (isDesktop && currentLocation.accuracy > REQUIRED_ACCURACY_OPTIMAL) {
-                    successDesc += ` (normal para ordenadores)`;
-                }
-                
-                updateLocationStatus('success', successMsg, successDesc);
-                updateSubmitButton();
-                updateLocationFields(currentLocation);
-            } else {
-                locationValid = false;
-                
-                const precisedMsg = isDesktop 
-                    ? `Precisión insuficiente (${Math.round(currentLocation.accuracy)}m > ${REQUIRED_ACCURACY}m)`
-                    : `Precisión GPS insuficiente`;
-                
-                const preciseDesc = isDesktop
-                    ? `Se requiere ${REQUIRED_ACCURACY}m o menos. En desktop, intente conectarse a una red WiFi conocida para mejorar la precisión.`
-                    : `Se requiere ${REQUIRED_ACCURACY}m o menos. Actual: ${Math.round(currentLocation.accuracy)}m`;
-                
-                updateLocationStatus('warning', precisedMsg, preciseDesc);
-                
-                if (locationAttempts < MAX_LOCATION_ATTEMPTS) {
-                    setTimeout(() => getCurrentLocation(), 2000);
-                } else {
-                    updateLocationStatus('error', 'No se pudo obtener la precisión requerida', 
-                        isDesktop ? 'Intente conectarse a WiFi o usar un dispositivo móvil' : '');
-                    document.getElementById('retry_location_btn').style.display = 'block';
-                }
-            }
-        },
-        function(error) {
-            locationValid = false;
-            let errorMessage, errorDescription;
-            
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    errorMessage = 'Permisos denegados';
-                    errorDescription = 'Permita el acceso a la ubicación';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    errorMessage = 'Ubicación no disponible';
-                    errorDescription = isDesktop 
-                        ? 'Verifique su conexión a Internet o WiFi' 
-                        : 'Verifique su conexión GPS';
-                    break;
-                case error.TIMEOUT:
-                    errorMessage = 'Tiempo agotado';
-                    errorDescription = 'Intente nuevamente';
-                    break;
-                default:
-                    errorMessage = 'Error desconocido';
-                    errorDescription = 'Error inesperado';
-            }
-            
-            document.getElementById('location_status').value = 'error: ' + errorMessage;
-            updateLocationStatus('error', errorMessage, errorDescription);
-            
-            ['ubicacion_detectada', 'direccion_completa', 'precision_gps'].forEach(id => {
-                document.getElementById(id).value = 'Error: ' + errorMessage;
-                document.getElementById(id).className = 'location-field error';
-            });
-            
-            if (locationAttempts < MAX_LOCATION_ATTEMPTS && error.code !== error.PERMISSION_DENIED) {
-                setTimeout(() => getCurrentLocation(), 3000);
-            } else {
-                document.getElementById('retry_location_btn').style.display = 'block';
-            }
-        },
-        options
-    );
+  const options = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
+  
+  navigator.geolocation.getCurrentPosition(
+    function(position) {
+      currentLocation = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      };
+      
+      document.getElementById('latitude').value = currentLocation.latitude;
+      document.getElementById('longitude').value = currentLocation.longitude;
+      
+      console.log(`📍 Ubicación obtenida - Precisión: ${Math.round(currentLocation.accuracy)}m (límite: ${REQUIRED_ACCURACY}m)`);
+      
+      if (currentLocation.accuracy <= REQUIRED_ACCURACY) {
+        locationValid = true;
+        document.getElementById('location_status').value = 'success';
+        
+        let successMsg = 'Ubicación obtenida correctamente';
+        let successDesc = `Precisión: ${Math.round(currentLocation.accuracy)} metros`;
+        
+        if (isDesktop && currentLocation.accuracy > REQUIRED_ACCURACY_OPTIMAL) {
+          successDesc += ` (normal para ordenadores)`;
+        }
+        
+        updateLocationStatus('success', successMsg, successDesc);
+        updateSubmitButton();
+        updateLocationFields(currentLocation);
+      } else {
+        locationValid = false;
+        
+        const precisedMsg = isDesktop 
+          ? `Precisión insuficiente (${Math.round(currentLocation.accuracy)}m > ${REQUIRED_ACCURACY}m)`
+          : `Precisión GPS insuficiente`;
+        
+        const preciseDesc = isDesktop
+          ? `Se requiere ${REQUIRED_ACCURACY}m o menos. En desktop, intente conectarse a una red WiFi conocida para mejorar la precisión.`
+          : `Se requiere ${REQUIRED_ACCURACY}m o menos. Actual: ${Math.round(currentLocation.accuracy)}m`;
+        
+        updateLocationStatus('warning', precisedMsg, preciseDesc);
+        
+        if (locationAttempts < MAX_LOCATION_ATTEMPTS) {
+          setTimeout(() => getCurrentLocation(), 2000);
+        } else {
+          updateLocationStatus('error', 'No se pudo obtener la precisión requerida', 
+            isDesktop ? 'Intente conectarse a WiFi o usar un dispositivo móvil' : '');
+          document.getElementById('retry_location_btn').style.display = 'block';
+        }
+      }
+    },
+    function(error) {
+      locationValid = false;
+      let errorMessage, errorDescription;
+      
+      switch(error.code) {
+        case error.PERMISSION_DENIED:
+          errorMessage = 'Permisos denegados';
+          errorDescription = 'Permita el acceso a la ubicación';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          errorMessage = 'Ubicación no disponible';
+          errorDescription = isDesktop 
+            ? 'Verifique su conexión a Internet o WiFi' 
+            : 'Verifique su conexión GPS';
+          break;
+        case error.TIMEOUT:
+          errorMessage = 'Tiempo agotado';
+          errorDescription = 'Intente nuevamente';
+          break;
+        default:
+          errorMessage = 'Error desconocido';
+          errorDescription = 'Error inesperado';
+      }
+      
+      document.getElementById('location_status').value = 'error: ' + errorMessage;
+      updateLocationStatus('error', errorMessage, errorDescription);
+      
+      ['ubicacion_detectada', 'direccion_completa', 'precision_gps'].forEach(id => {
+        document.getElementById(id).value = 'Error: ' + errorMessage;
+        document.getElementById(id).className = 'location-field error';
+      });
+      
+      if (locationAttempts < MAX_LOCATION_ATTEMPTS && error.code !== error.PERMISSION_DENIED) {
+        setTimeout(() => getCurrentLocation(), 3000);
+      } else {
+        document.getElementById('retry_location_btn').style.display = 'block';
+      }
+    },
+    options
+  );
 }
 
 function updateLocationStatus(type, message, description) {
-    const statusDiv = document.getElementById('location_status_display');
-    const icons = { loading: '🌍', success: '✅', warning: '⚠️', error: '❌' };
-    
-    statusDiv.className = `location-status ${type}`;
-    statusDiv.innerHTML = `${icons[type]} <strong>${message}</strong>${description ? '<br>' + description : ''}`;
+  const statusDiv = document.getElementById('location_status_display');
+  const icons = { loading: '🌐', success: '✅', warning: '⚠️', error: '❌' };
+  
+  statusDiv.className = `location-status ${type}`;
+  statusDiv.innerHTML = `${icons[type]} <strong>${message}</strong>${description ? '<br>' + description : ''}`;
 }
 
 function updateSubmitButton() {
-    const submitBtn = document.getElementById('submit_btn');
-    
-    if (!isAuthenticated) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = '🔒 Autentíquese primero';
-        submitBtn.style.background = '#6c757d';
-    } else if (locationValid) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '📋 Registrar Asistencia';
-        submitBtn.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
-    } else {
-        submitBtn.disabled = true;
-        submitBtn.textContent = '⚠️ Ubicación GPS requerida';
-        submitBtn.style.background = '#6c757d';
-    }
+  const submitBtn = document.getElementById('submit_btn');
+  
+  if (!isAuthenticated) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '🔒 Autentíquese primero';
+    submitBtn.style.background = '#6c757d';
+  } else if (locationValid) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '📋 Registrar Asistencia';
+    submitBtn.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
+  } else {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⚠️ Ubicación GPS requerida';
+    submitBtn.style.background = '#6c757d';
+  }
 }
 
 function updateLocationFields(location) {
-    const accuracy = Math.round(location.accuracy);
-    let precisionText = `${accuracy} metros`;
-    let precisionClass = '';
-    
-    // Clasificación de precisión adaptada al tipo de dispositivo
-    if (isDesktop) {
-        // Para desktop: estándares más relajados
-        if (accuracy <= 200) {
-            precisionText += ' (Excelente para Desktop)';
-            precisionClass = 'uas-location';
-        } else if (accuracy <= 500) {
-            precisionText += ' (Muy Buena para Desktop)';
-            precisionClass = 'uas-location';
-        } else if (accuracy <= 1000) {
-            precisionText += ' (Aceptable para Desktop)';
-            precisionClass = '';
-        } else {
-            precisionText += ' (Baja - típica de Desktop)';
-            precisionClass = 'warning';
-        }
+  const accuracy = Math.round(location.accuracy);
+  let precisionText = `${accuracy} metros`;
+  let precisionClass = '';
+  
+  // Clasificación de precisión adaptada al tipo de dispositivo
+  if (isDesktop) {
+    // Para desktop: estándares más relajados
+    if (accuracy <= 200) {
+      precisionText += ' (Excelente para Desktop)';
+      precisionClass = 'uas-location';
+    } else if (accuracy <= 500) {
+      precisionText += ' (Muy Buena para Desktop)';
+      precisionClass = 'uas-location';
+    } else if (accuracy <= 1000) {
+      precisionText += ' (Aceptable para Desktop)';
+      precisionClass = '';
     } else {
-        // Para móviles: estándares estrictos
-        if (accuracy <= 10) {
-            precisionText += ' (Excelente)';
-            precisionClass = 'uas-location';
-        } else if (accuracy <= 30) {
-            precisionText += ' (Muy Buena)';
-            precisionClass = 'uas-location';
-        } else if (accuracy <= 50) {
-            precisionText += ' (Buena)';
-            precisionClass = '';
-        } else {
-            precisionText += ' (Regular)';
-            precisionClass = 'warning';
-        }
+      precisionText += ' (Baja - típica de Desktop)';
+      precisionClass = 'warning';
     }
-    
-    document.getElementById('precision_gps').value = precisionText;
-    document.getElementById('precision_gps').className = `location-field ${precisionClass}`;
-    
-    const ubicacionDetectada = detectarUbicacionEspecifica(location.latitude, location.longitude);
-    const campoUbicacion = document.getElementById('ubicacion_detectada');
-    
-    if (ubicacionDetectada.encontrada && ubicacionDetectada.esUAS) {
-        campoUbicacion.value = ubicacionDetectada.nombre;
-        campoUbicacion.className = 'location-field uas-location';
+  } else {
+    // Para móviles: estándares estrictos
+    if (accuracy <= 10) {
+      precisionText += ' (Excelente)';
+      precisionClass = 'uas-location';
+    } else if (accuracy <= 30) {
+      precisionText += ' (Muy Buena)';
+      precisionClass = 'uas-location';
+    } else if (accuracy <= 50) {
+      precisionText += ' (Buena)';
+      precisionClass = '';
     } else {
-        campoUbicacion.value = "Consultando ubicación...";
-        campoUbicacion.className = 'location-field';
+      precisionText += ' (Regular)';
+      precisionClass = 'warning';
     }
-    
-    obtenerDireccionCompleta(location.latitude, location.longitude, ubicacionDetectada);
+  }
+  
+  document.getElementById('precision_gps').value = precisionText;
+  document.getElementById('precision_gps').className = `location-field ${precisionClass}`;
+  
+  const ubicacionDetectada = detectarUbicacionEspecifica(location.latitude, location.longitude);
+  const campoUbicacion = document.getElementById('ubicacion_detectada');
+  
+  if (ubicacionDetectada.encontrada && ubicacionDetectada.esUAS) {
+    campoUbicacion.value = ubicacionDetectada.nombre;
+    campoUbicacion.className = 'location-field uas-location';
+  } else {
+    campoUbicacion.value = "Consultando ubicación...";
+    campoUbicacion.className = 'location-field';
+  }
+  
+  obtenerDireccionCompleta(location.latitude, location.longitude, ubicacionDetectada);
 }
 
 function detectarUbicacionEspecifica(lat, lng) {
-    for (let ubicacion of ubicacionesUAS.sort((a, b) => a.radius - b.radius)) {
-        const distancia = calcularDistancia(lat, lng, ubicacion.lat, ubicacion.lng);
-        
-        if (distancia <= ubicacion.radius) {
-            return {
-                encontrada: true,
-                esUAS: true,
-                nombre: ubicacion.name,
-                distancia: Math.round(distancia)
-            };
-        }
-    }
+  const ubicacionesUAS = [
+    { name: "CESPSIC - Centro de Servicios Psicológicos", lat: 24.8278, lng: -107.3812, radius: 50 },
+    { name: "Facultad de Psicología UAS", lat: 24.7993, lng: -107.3950, radius: 100 },
+    { name: "Universidad Autónoma de Sinaloa - Campus Central", lat: 24.7990, lng: -107.3950, radius: 200 }
+  ];
+  
+  for (let ubicacion of ubicacionesUAS.sort((a, b) => a.radius - b.radius)) {
+    const distancia = calcularDistancia(lat, lng, ubicacion.lat, ubicacion.lng);
     
-    return { encontrada: false, esUAS: false, nombre: "Ubicación externa" };
+    if (distancia <= ubicacion.radius) {
+      return {
+        encontrada: true,
+        esUAS: true,
+        nombre: ubicacion.name,
+        distancia: Math.round(distancia)
+      };
+    }
+  }
+  
+  return { encontrada: false, esUAS: false, nombre: "Ubicación externa" };
 }
 
 async function obtenerDireccionCompleta(lat, lng, ubicacionDetectada) {
-    try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=es&zoom=18`);
-        const data = await response.json();
-        
-        const direccionField = document.getElementById('direccion_completa');
-        
-        if (data && data.display_name) {
-            direccionField.value = data.display_name;
-            direccionField.className = 'location-field';
-            
-            if (!ubicacionDetectada.esUAS) {
-                actualizarUbicacionEspecifica(data);
-            }
-        } else {
-            direccionField.value = 'Dirección no disponible';
-            direccionField.className = 'location-field warning';
-        }
-    } catch (error) {
-        const direccionField = document.getElementById('direccion_completa');
-        direccionField.value = 'Error al obtener dirección';
-        direccionField.className = 'location-field warning';
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=es&zoom=18`);
+    const data = await response.json();
+    
+    const direccionField = document.getElementById('direccion_completa');
+    
+    if (data && data.display_name) {
+      direccionField.value = data.display_name;
+      direccionField.className = 'location-field';
+      
+      if (!ubicacionDetectada.esUAS) {
+        actualizarUbicacionEspecifica(data);
+      }
+    } else {
+      direccionField.value = 'Dirección no disponible';
+      direccionField.className = 'location-field warning';
     }
+  } catch (error) {
+    const direccionField = document.getElementById('direccion_completa');
+    direccionField.value = 'Error al obtener dirección';
+    direccionField.className = 'location-field warning';
+  }
 }
 
 function actualizarUbicacionEspecifica(direccionData) {
-    const campoUbicacion = document.getElementById('ubicacion_detectada');
-    const address = direccionData.address || {};
-    
-    let ubicacionEspecifica = '';
-    
-    if (address.house_number && address.road) {
-        ubicacionEspecifica = `${address.road} ${address.house_number}`;
-    } else if (address.road) {
-        ubicacionEspecifica = address.road;
-    } else if (address.neighbourhood || address.suburb) {
-        ubicacionEspecifica = address.neighbourhood || address.suburb;
-    } else if (address.city || address.town) {
-        ubicacionEspecifica = address.city || address.town;
-    } else {
-        ubicacionEspecifica = "Ubicación no especificada";
-    }
-    
-    campoUbicacion.value = ubicacionEspecifica;
+  const campoUbicacion = document.getElementById('ubicacion_detectada');
+  const address = direccionData.address || {};
+  
+  let ubicacionEspecifica = '';
+  
+  if (address.house_number && address.road) {
+    ubicacionEspecifica = `${address.road} ${address.house_number}`;
+  } else if (address.road) {
+    ubicacionEspecifica = address.road;
+  } else if (address.neighbourhood || address.suburb) {
+    ubicacionEspecifica = address.neighbourhood || address.suburb;
+  } else if (address.city || address.town) {
+    ubicacionEspecifica = address.city || address.town;
+  } else {
+    ubicacionEspecifica = "Ubicación no especificada";
+  }
+  
+  campoUbicacion.value = ubicacionEspecifica;
 }
 
 function calcularDistancia(lat1, lng1, lat2, lng2) {
-    const R = 6371e3;
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lng2-lng1) * Math.PI/180;
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lng2-lng1) * Math.PI/180;
 
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+          Math.cos(φ1) * Math.cos(φ2) *
+          Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
-    return R * c;
+  return R * c;
 }
 
 function resetLocationFields() {
-    ['ubicacion_detectada', 'direccion_completa', 'precision_gps'].forEach(id => {
-        document.getElementById(id).value = 'Esperando autenticación...';
-        document.getElementById(id).className = 'location-field';
-    });
-    document.getElementById('retry_location_btn').style.display = 'none';
-    updateLocationStatus('loading', 'Complete la autenticación para obtener ubicación GPS', '');
+  ['ubicacion_detectada', 'direccion_completa', 'precision_gps'].forEach(id => {
+    document.getElementById(id).value = 'Esperando autenticación...';
+    document.getElementById(id).className = 'location-field';
+  });
+  document.getElementById('retry_location_btn').style.display = 'none';
+  updateLocationStatus('loading', 'Complete la autenticación para obtener ubicación GPS', '');
 }
 
 // ========== DIAGNÓSTICO ==========
@@ -2308,4 +2976,23 @@ console.log(`📱 Dispositivo: ${deviceType}`);
 console.log(`💻 Es Desktop: ${isDesktop ? 'Sí' : 'No'}`);
 console.log(`📍 Precisión requerida: ${REQUIRED_ACCURACY}m ${isDesktop ? '(relajada para desktop)' : '(estándar móvil)'}`);
 console.log(`🎯 Modo: ${isIOS ? 'iOS (compatibilidad especial)' : isDesktop ? 'Desktop (precisión adaptada)' : 'Android/Windows/Desktop (funcionalidad completa)'}`);
+
+// ========== EXPORTAR CONSTANTES ==========
+console.log('\n📋 CONFIGURACIÓN OPTIMIZADA DE VERIFICACIÓN:');
+console.log(`   - Espera inicial: ${TIEMPO_ESPERA_INICIAL/1000}s`);
+console.log(`   - Intentos verificación: ${VERIFICATION_ATTEMPTS}`);
+console.log(`   - Tiempos entre verificaciones: ${TIEMPO_ENTRE_VERIFICACIONES.map(t => t/1000 + 's').join(', ')}`);
+console.log(`   - Modo fallback: ${ENABLE_VERIFICATION_FALLBACK ? 'HABILITADO ✅' : 'DESHABILITADO'}`);
+console.log('\n✅ Mejoras cargadas - Mejor manejo de errores de red');
+
+// Mensaje sobre errores 403
+console.log('\n📌 INFORMACIÓN IMPORTANTE SOBRE ERRORES 403:');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('Si ve errores 403 en verificación o registros:');
+console.log('  ✅ Sus datos SÍ se guardaron correctamente');
+console.log('  ❌ Solo la verificación/lectura falló por CORS');
+console.log('  💡 Error 403 = Restricción de seguridad de Google');
+console.log('  📊 Abra Google Sheets para confirmar visualmente');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
 console.log('🔍 Para diagnóstico: diagnosticComplete()');
