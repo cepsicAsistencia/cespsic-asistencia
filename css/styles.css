@@ -76,7 +76,7 @@ h1 {
     font-weight: bold;
 }
 
-/* Estilos para autenticación */
+/* ESTILOS PARA AUTENTICACIÓN */
 .auth-section {
     background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
     border: 2px solid #64b5f6;
@@ -206,7 +206,7 @@ h1 {
     gap: 8px;
 }
 
-/* NUEVOS ESTILOS PARA SECCIÓN DE REVOCAR */
+/* ESTILOS PARA SECCIÓN DE REVOCAR */
 .revoke-section {
     margin-top: 15px;
     padding-top: 15px;
@@ -382,7 +382,266 @@ h1 {
     box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
 }
 
-/* Overlay para formulario deshabilitado */
+/* ESTILOS PARA REGISTROS DEL DÍA */
+.registros-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 2px solid #dee2e6;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 25px;
+    animation: slideUp 0.5s ease-out;
+}
+
+.registros-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.registros-header h3 {
+    margin: 0;
+    color: #495057;
+    font-size: 1.3em;
+    font-weight: 600;
+}
+
+.registros-count {
+    background: #667eea;
+    color: white;
+    padding: 6px 15px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+.registros-lista {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.registro-item {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.registro-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-color: #667eea;
+}
+
+.registro-header-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.registro-numero {
+    background: #6c757d;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.registro-tipo {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.95em;
+}
+
+.registro-hora {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+
+.registro-body {
+    display: grid;
+    gap: 8px;
+}
+
+.registro-detalle {
+    color: #495057;
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+.registro-detalle strong {
+    color: #343a40;
+}
+
+.registro-loading {
+    text-align: center;
+    padding: 30px;
+    color: #6c757d;
+    font-size: 1.1em;
+}
+
+.registro-vacio {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6c757d;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+.registro-error {
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+}
+
+.registro-error .error-icon {
+    font-size: 3em;
+    margin-bottom: 10px;
+}
+
+.registro-error .error-text {
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+
+/* ESTILOS PARA CONFIRMACIÓN DE GUARDADO */
+.registro-confirmacion-guardado {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border: 2px solid #28a745;
+    border-radius: 12px;
+    padding: 30px 20px;
+    text-align: center;
+    color: #155724;
+}
+
+.confirmacion-icon {
+    font-size: 3em;
+    margin-bottom: 15px;
+    animation: scaleIn 0.5s ease-out;
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.confirmacion-titulo {
+    font-size: 1.3em;
+    font-weight: 700;
+    margin-bottom: 15px;
+    color: #155724;
+}
+
+.confirmacion-texto {
+    font-size: 0.95em;
+    line-height: 1.8;
+    color: #155724;
+}
+
+.confirmacion-texto strong {
+    color: #0d4625;
+}
+
+/* ESTILOS PARA INFO 403 SIN BOTÓN */
+.registro-info-403 {
+    background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+    border: 2px solid #ffc107;
+    border-radius: 12px;
+    padding: 30px 20px;
+    text-align: center;
+    color: #856404;
+}
+
+.info-icon {
+    font-size: 3em;
+    margin-bottom: 15px;
+}
+
+.info-titulo {
+    font-size: 1.2em;
+    font-weight: 700;
+    margin-bottom: 15px;
+    color: #856404;
+}
+
+.info-texto {
+    font-size: 0.95em;
+    line-height: 1.8;
+    color: #856404;
+}
+
+.info-texto strong {
+    color: #664d03;
+}
+
+.btn-retry-registros {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 15px;
+}
+
+.btn-retry-registros:hover {
+    background: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+@keyframes slideInRegistro {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Scrollbar para lista de registros */
+.registros-lista::-webkit-scrollbar {
+    width: 8px;
+}
+
+.registros-lista::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.registros-lista::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 10px;
+}
+
+.registros-lista::-webkit-scrollbar-thumb:hover {
+    background: #5568d3;
+}
+
+/* OVERLAY PARA FORMULARIO DESHABILITADO */
 .form-overlay {
     position: relative;
 }
@@ -403,7 +662,7 @@ h1 {
     display: none;
 }
 
-/* Resto de estilos del formulario original */
+/* ESTILOS DEL FORMULARIO */
 .form-section {
     margin-bottom: 25px;
 }
@@ -599,7 +858,7 @@ input:read-only.location-field.warning {
     margin-top: 15px;
 }
 
-/* NUEVOS ESTILOS PARA EVIDENCIAS */
+/* ESTILOS PARA EVIDENCIAS */
 .evidencias-container {
     border: 2px dashed #667eea;
     border-radius: 12px;
@@ -776,6 +1035,8 @@ input:read-only.location-field.warning {
     margin: 15px 0;
     border-radius: 8px;
     display: none;
+    white-space: pre-line;
+    line-height: 1.6;
 }
 
 .status.success {
@@ -788,6 +1049,12 @@ input:read-only.location-field.warning {
     background: #f8d7da;
     border: 1px solid #f5c6cb;
     color: #721c24;
+}
+
+.status.warning {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
 }
 
 .location-retry-btn {
@@ -807,7 +1074,7 @@ input:read-only.location-field.warning {
     background: #138496;
 }
 
-/* Responsivo para logos */
+/* RESPONSIVE DESIGN */
 @media (min-width: 1200px) {
     .logo {
         max-height: 120px;
@@ -858,6 +1125,27 @@ input:read-only.location-field.warning {
     .btn-reject,
     .btn-danger {
         width: 100%;
+    }
+    
+    .registros-header {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+    
+    .registro-header-item {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+    
+    .registros-lista {
+        max-height: 300px;
+    }
+    
+    .btn-retry-registros {
+        width: 100%;
+        margin-top: 10px;
     }
 }
 
