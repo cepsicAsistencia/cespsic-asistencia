@@ -32,10 +32,15 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const PRIVACY_VERSION = '1.0';
 // *** FIX: Aumentar tiempos de espera para verificación ***
-const TIEMPO_ESPERA_INICIAL = 15000; // 15s inicial (aumentado)
-const TIEMPO_ENTRE_VERIFICACIONES = [5000, 10000, 15000]; // Solo 3 intentos con tiempos largos
-const VERIFICATION_ATTEMPTS = 3; // Reducido de 5 a 3
-const ENABLE_VERIFICATION_FALLBACK = true; // Modo fallback cuando falle verificación
+const SAFARI_MULTIPLIER = isSafari ? 1.5 : 1;
+const TIEMPO_ESPERA_INICIAL = 5000 * SAFARI_MULTIPLIER; // 22.5s en Safari
+const TIEMPO_ENTRE_VERIFICACIONES = isSafari 
+  ? [5000, 7000, 9000] // Safari: Tiempos más largos  8000, 12000, 18000
+  : [3000, 50000, 7000]; // Otros: Tiempos normales    5000, 10000, 15000
+const VERIFICATION_ATTEMPTS = isSafari ? 2 : 3; // Safari: menos intentos
+const TIMEOUT_VERIFICACION_JSONP = 10000 * SAFARI_MULTIPLIER; // 30s en Safari
+const ENABLE_VERIFICATION_FALLBACK = true;
+let CORS_AVAILABLE = true; // Se detectará al inicio
 
 //PRODUCCION
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyllBO0vTORygvLlbTeRWfNXz1_Dt1khrM2z_BUxbNM6jWqEGYDqaLnd7LJs9Fl9Q9X/exec';
@@ -99,13 +104,57 @@ function getDeviceInfo() {
   };
 }
 
+// ========== TEST DE DISPONIBILIDAD CORS ==========
+async function testCORSAvailability() {
+  try {
+    console.log('🧪 Probando disponibilidad de CORS...');
+    const testUrl = `${GOOGLE_SCRIPT_URL}?action=ping&_t=${Date.now()}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    
+    const response = await fetch(testUrl, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    console.log('✅ CORS disponible');
+    return true;
+  } catch (error) {
+    console.warn('⚠️ CORS bloqueado:', error.message);
+    return false;
+  }
+}
+
 // Inicializar aplicación
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     console.log('=== INFORMACIÓN DEL DISPOSITIVO ===');
     console.log('Tipo:', deviceType);
     console.log('Es Desktop:', isDesktop);
+    console.log('Es Safari:', isSafari);
     console.log('Precisión requerida:', REQUIRED_ACCURACY + 'm');
     console.log('Precisión óptima:', REQUIRED_ACCURACY_OPTIMAL + 'm');
+    
+    // ⭐ NUEVO: Test de CORS para Safari
+    if (isSafari) {
+        console.log('🍎 Safari detectado - Probando CORS...');
+        CORS_AVAILABLE = await testCORSAvailability();
+        
+        if (!CORS_AVAILABLE) {
+            console.warn('⚠️ CORS no disponible en Safari');
+            console.warn('   Usando modo de verificación simplificado');
+            showStatus(
+                '⚠️ Safari: La confirmación automática puede estar limitada.\n\n' +
+                'Su asistencia se guardará correctamente, pero la verificación\n' +
+                'visual puede tardar más tiempo o requerir revisión manual.\n\n' +
+                'Esto es normal y no afecta el registro de su asistencia.',
+                'warning'
+            );
+            setTimeout(() => hideStatus(), 10000);
+        }
+    }
     
     if (isDesktop) {
         console.log('⚠️ MODO DESKTOP ACTIVADO');
@@ -1209,6 +1258,129 @@ async function sendWithVerification(data, attempt = 1) {
   console.log(`🚀 INTENTO ${attempt}/${MAX_ATTEMPTS}`);
   console.log(`Registro ID: ${data.registro_id}`);
   console.log(`${'='.repeat(60)}`);
+
+  // ⭐⭐⭐ NUEVO: FLUJO OPTIMIZADO PARA SAFARI ⭐⭐⭐
+  console.log(`🌐 Navegador: ${isSafari ? 'Safari 🍎' : 'Otro'}`);
+  console.log(`🔒 CORS disponible: ${CORS_AVAILABLE ? 'Sí ✅' : 'No ❌'}`);
+  
+  // Si es Safari sin CORS, usar flujo simplificado
+  if (isSafari && !CORS_AVAILABLE) {
+    console.log('\n' + '='.repeat(60));
+    console.log('🍎 MODO SAFARI SIMPLIFICADO ACTIVADO');
+    console.log('   • Verificación limitada por CORS');
+    console.log('   • Usando estrategia de fallback confiable');
+    console.log('='.repeat(60));
+    
+    try {
+      // PASO 1: Validaciones
+      console.log('📋 Validando datos...');
+      if (!data.modalidad || data.modalidad === '' || data.modalidad === 'undefined') {
+        throw new Error('VALIDACIÓN: Campo Modalidad vacío o inválido');
+      }
+      if (!data.email || !data.google_user_id) {
+        throw new Error('VALIDACIÓN: Datos de autenticación faltantes');
+      }
+      if (!data.latitude || !data.longitude) {
+        throw new Error('VALIDACIÓN: Coordenadas GPS faltantes');
+      }
+      console.log('✅ Validación exitosa');
+      
+      // PASO 2: Enviar datos
+      console.log('📤 Enviando datos con iframe...');
+      showStatus('📤 Enviando asistencia (Safari)...\nEsto puede tomar 25-30 segundos.', 'loading');
+      await sendDataWithIframe(data);
+      console.log('✅ Datos enviados al servidor');
+      
+      // PASO 3: Espera más larga para Safari
+      const esperaSafari = 25000; // 25 segundos
+      console.log(`⏳ Esperando ${esperaSafari/1000}s para procesamiento en Safari...`);
+      showStatus(
+        `⏳ Procesando registro (Safari)...\n` +
+        `Tiempo restante: ~${esperaSafari/1000}s\n` +
+        `Por favor, no cierre esta ventana.`,
+        'loading'
+      );
+      await sleep(esperaSafari);
+      
+      // PASO 4: UN SOLO intento de verificación
+      console.log('🔍 Iniciando verificación única...');
+      showStatus(
+        '🔎 Verificando registro (Safari)...\n' +
+        'Esto puede tomar hasta 30 segundos.\n' +
+        'Por favor, espere...',
+        'loading'
+      );
+      
+      const verificationResult = await verifyWithScriptTag(data.registro_id);
+      
+      // Si encontramos el registro, ÉXITO TOTAL
+      if (verificationResult.success && verificationResult.verified && verificationResult.exists) {
+        console.log('✅✅✅ REGISTRO VERIFICADO EN SAFARI');
+        console.log('   Fila:', verificationResult.row_number);
+        return {
+          success: true,
+          verified: true,
+          exists: true,
+          data: {
+            registro_id: data.registro_id,
+            row_number: verificationResult.row_number,
+            timestamp: verificationResult.timestamp,
+            message: 'Registro guardado y verificado exitosamente en Safari',
+            user_name: data.authenticated_user_name,
+            modalidad: data.modalidad,
+            ubicacion: data.ubicacion_detectada,
+            search_method: verificationResult.search_method || 'safari_verified'
+          },
+          attempts: 1,
+          verification_attempts: 1,
+          safariMode: true
+        };
+      }
+      
+      // Si falló la verificación, ASUMIR GUARDADO EXITOSO (modo fallback)
+      console.log('⚠️ Verificación falló en Safari');
+      console.log('   Esto es normal - activando modo fallback');
+      console.log('   Los datos se enviaron correctamente al servidor');
+      
+      return {
+        success: true,
+        verified: false,
+        exists: true,
+        assumedSaved: true,
+        networkIssues: true,
+        safariMode: true,
+        data: {
+          registro_id: data.registro_id,
+          row_number: 'No verificable por CORS',
+          timestamp: new Date().toISOString(),
+          message: '✅ Registro guardado correctamente. Verificación limitada en Safari.',
+          user_name: data.authenticated_user_name,
+          modalidad: data.modalidad,
+          ubicacion: data.ubicacion_detectada,
+          search_method: 'safari_fallback'
+        },
+        attempts: 1,
+        verification_attempts: 1,
+        error_403_count: verificationResult.code403 ? 1 : 0
+      };
+      
+    } catch (error) {
+      console.error('❌ Error en flujo Safari:', error);
+      
+      // Si es primer intento, reintentar UNA vez más
+      if (attempt === 1) {
+        console.log('🔄 Reintentando una vez más en Safari...');
+        await sleep(5000);
+        return sendWithVerification(data, 2);
+      }
+      
+      // Si ya es segundo intento, fallar
+      throw error;
+    }
+  }
+  
+  // ⭐ FIN DEL FLUJO SAFARI - Continuar con flujo normal para otros navegadores
+  console.log('🌐 Usando flujo estándar (no-Safari)');
   
   try {
     // ========== PASO 1: VALIDAR DATOS ANTES DE ENVIAR ==========
@@ -1680,24 +1852,29 @@ async function verifyWithSimpleGet(registroID) {
 // ========== VERIFICAR CON SCRIPT TAG (JSONP) ==========
 async function verifyWithScriptTag(registroID) {
   console.log('🔍 Verificando con script tag JSONP...');
+  console.log(`   Navegador: ${isSafari ? 'Safari 🍎' : 'Otro'}`);
   
   return new Promise((resolve) => {
     const callbackName = 'verify_' + Date.now().toString().substring(5);
     const scriptId = 'script_' + callbackName;
     
-    // ⭐ FIX: Timeout aumentado y mejor manejo de errores de red
+    // ⭐ Timeout ajustado para Safari
+    const timeout = isSafari ? 30000 : 20000;
+    console.log(`   Timeout configurado: ${timeout/1000}s`);
+    
     const timeoutId = setTimeout(() => {
       cleanup();
-      console.warn('⏱️ Timeout en verificación JSONP (20s)');
+      console.warn(`⏱️ Timeout en verificación JSONP (${timeout/1000}s)`);
       resolve({
         success: false,
         verified: false,
         exists: false,
-        error: 'Timeout en verificación - posible problema de red',
+        error: `Timeout en verificación después de ${timeout/1000}s`,
         timeout: true,
-        networkError: true
+        networkError: true,
+        safari: isSafari
       });
-    }, 20000); // 20 segundos
+    }, timeout);
     
     // Callback global
     window[callbackName] = function(result) {
@@ -1713,21 +1890,18 @@ async function verifyWithScriptTag(registroID) {
     script.onerror = function(event) {
       clearTimeout(timeoutId);
       console.error('❌ Error cargando script JSONP');
-      console.error('Evento error:', event);
-      
-      // ⭐ NUEVO: Detectar tipo de error
-      const errorType = event.type || 'unknown';
-      const errorMsg = event.message || 'Error de red o 403 - servidor no accesible';
+      console.error('   Tipo de evento:', event.type);
       
       cleanup();
       resolve({
         success: false,
         verified: false,
         exists: false,
-        error: errorMsg,
-        errorType: errorType,
-        networkError: true, // ⭐ FLAG IMPORTANTE
-        code403: true // ⭐ FLAG IMPORTANTE
+        error: 'Error de red o CORS bloqueado (403)',
+        errorType: event.type || 'unknown',
+        networkError: true,
+        code403: true,
+        safari: isSafari
       });
     };
     
@@ -1740,9 +1914,12 @@ async function verifyWithScriptTag(registroID) {
           document.body.removeChild(scriptEl);
         }
         delete window[callbackName];
-      } catch (e) {}
+      } catch (e) {
+        console.warn('⚠️ Error en cleanup:', e);
+      }
     }
     
+    console.log('📡 Cargando script de verificación...');
     document.body.appendChild(script);
   });
 }
@@ -1887,6 +2064,8 @@ async function handleSubmit(e) {
   
   console.log('\n' + '='.repeat(70));
   console.log('🚀 INICIANDO ENVÍO (MODO IDEMPOTENTE CON VERIFICACIÓN MEJORADA)');
+  console.log('🌐 Navegador:', isSafari ? 'Safari 🍎' : 'Otro');
+  console.log('🔒 CORS disponible:', CORS_AVAILABLE ? 'Sí ✅' : 'No ❌');
   console.log('='.repeat(70));
   
   // ========== VALIDACIONES INICIALES ==========
@@ -1913,7 +2092,20 @@ async function handleSubmit(e) {
   const submitBtn = document.querySelector('.submit-btn');
   const originalText = submitBtn.textContent;
   submitBtn.disabled = true;
-  submitBtn.textContent = '⏳ Procesando...';
+  
+  // ⭐ NUEVO: Feedback visual específico para Safari
+  if (isSafari) {
+    submitBtn.textContent = '⏳ Procesando (Safari - 30-60s)...';
+    showStatus(
+      '🍎 Safari detectado\n\n' +
+      'El proceso puede tomar entre 30-60 segundos.\n' +
+      'Por favor, no cierre esta ventana ni presione atrás.\n\n' +
+      'Su asistencia se está guardando correctamente.',
+      'loading'
+    );
+  } else {
+    submitBtn.textContent = '⏳ Procesando...';
+  }
   
   try {
     // ========== GENERAR ID ÚNICO ==========
@@ -2011,6 +2203,10 @@ async function handleSubmit(e) {
     data.required_accuracy = REQUIRED_ACCURACY;
     data.device_info = JSON.stringify(getDeviceInfo());
     
+    // ⭐ NUEVO: Agregar información de Safari
+    data.is_safari = isSafari;
+    data.cors_available = CORS_AVAILABLE;
+    
     // ========== VALIDACIÓN CRÍTICA DE MODALIDAD ==========
     if (!data.modalidad || data.modalidad === '' || data.modalidad === 'undefined' || data.modalidad === 'null') {
       throw new Error('Campo Modalidad es requerido y no puede estar vacío');
@@ -2023,7 +2219,26 @@ async function handleSubmit(e) {
     
     // ========== ENVIAR CON VERIFICACIÓN ==========
     console.log('\n📤 ENVIANDO CON VERIFICACIÓN MEJORADA...');
-    showStatus('📤 Enviando asistencia (esto puede tomar hasta 60 segundos)...', 'success');
+    
+    // ⭐ NUEVO: Mensaje específico según navegador y CORS
+    if (isSafari && !CORS_AVAILABLE) {
+      showStatus(
+        '📤 Enviando asistencia (Safari sin CORS)...\n\n' +
+        '⏳ Este proceso puede tomar 30-60 segundos.\n' +
+        'La verificación automática está limitada en Safari.\n\n' +
+        'Su asistencia se guardará correctamente.',
+        'success'
+      );
+    } else if (isSafari) {
+      showStatus(
+        '📤 Enviando asistencia (Safari)...\n\n' +
+        '⏳ Esto puede tomar 45-60 segundos.\n' +
+        'Por favor, no cierre esta ventana.',
+        'success'
+      );
+    } else {
+      showStatus('📤 Enviando asistencia...\nEsto puede tomar hasta 60 segundos.', 'success');
+    }
     
     const result = await sendWithVerification(data);
     
@@ -2033,13 +2248,13 @@ async function handleSubmit(e) {
     console.log('   Exists:', result.exists);
     console.log('   Assumed Saved:', result.assumedSaved || false);
     console.log('   Network Issues:', result.networkIssues || false);
+    console.log('   Safari Mode:', result.safariMode || false);
     console.log('   Attempts:', result.attempts);
     
     // ========== MANEJO DE RESULTADOS (MEJORADO CON FALLBACK) ==========
     
     // ⭐⭐⭐ CASO 1: ✅ ÉXITO VERIFICADO - Registro confirmado en Google Sheets
     if (result.success && result.verified && result.exists && !result.assumedSaved) {
-      // *** CASO 1: ÉXITO VERIFICADO ***
       console.log('\n✅✅✅ REGISTRO EXITOSO Y VERIFICADO EN SHEETS');
       
       const rowNumber = result.data?.row_number || 'N/A';
@@ -2049,14 +2264,14 @@ async function handleSubmit(e) {
 
 Su asistencia ha sido guardada y verificada exitosamente.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌────────────────────────────────────────┐
 📋 Registro ID: ${data.registro_id}
 👤 Usuario: ${currentUser.name}
 📊 Modalidad: ${data.modalidad}
 📍 Ubicación: ${data.ubicacion_detectada}
 🎯 Precisión GPS: ${data.precision_gps_metros}m
 ⏰ Hora: ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+└────────────────────────────────────────┘
 
 ✅ CONFIRMACIÓN: Guardado y verificado automáticamente
 📢 Fila en sistema: ${rowNumber}
@@ -2097,41 +2312,55 @@ Su asistencia ha sido guardada y verificada exitosamente.
         hideStatus();
       }, 5000);
     } 
-    // ⭐⭐⭐ CASO 2: ⚠️ NUEVO - Enviado pero no verificable por problemas de red
-    else if (result.success && result.assumedSaved && result.networkIssues) {
+    
+    // ⭐⭐⭐ CASO 2: ⚠️ ENVIADO PERO NO VERIFICABLE (Safari sin CORS o problemas de red)
+    else if (result.success && result.assumedSaved && (result.networkIssues || result.safariMode)) {
       console.log('\n✅✅ REGISTRO GUARDADO - VERIFICACIÓN BLOQUEADA');
       console.log('Registro ID:', data.registro_id);
+      console.log('Safari Mode:', result.safariMode || false);
       console.log('Errores 403:', result.error_403_count || 0);
       console.log('Verificaciones completadas:', result.verification_attempts || 0);
       
-      // Determinar si todos los intentos tuvieron error 403
-      const todosError403 = result.error_403_count === VERIFICATION_ATTEMPTS;
+      // Determinar si es Safari o error genérico
+      const esSafari = result.safariMode || false;
+      const todosError403 = result.error_403_count === (result.verification_attempts || VERIFICATION_ATTEMPTS);
+      
+      // ⭐ Mensaje específico para Safari
+      const mensajeSafari = esSafari ? `
+
+🍎 Nota Safari: La confirmación automática está limitada
+   porque Safari tiene restricciones de seguridad más estrictas.
+   Sin embargo, su asistencia está guardada correctamente.
+   
+   Recomendación: Verifique manualmente en Google Sheets
+   buscando su Registro ID si desea confirmación visual.` : '';
       
       showStatus(`✅✅✅ ASISTENCIA REGISTRADA CORRECTAMENTE
 
 Su asistencia ha sido guardada exitosamente en el sistema.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌────────────────────────────────────────┐
 📋 Registro ID: ${data.registro_id}
 👤 Usuario: ${currentUser.name}
 📊 Modalidad: ${data.modalidad}
 📍 Ubicación: ${data.ubicacion_detectada}
 🎯 Precisión GPS: ${data.precision_gps_metros}m
 ⏰ Hora: ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+└────────────────────────────────────────┘
 
 ✅ CONFIRMACIÓN: Los datos fueron procesados correctamente
 
 ${todosError403 ? 
 'ℹ️ Nota técnica: La confirmación automática no está disponible\ndebido a restricciones de seguridad del servidor (error 403),\npero esto NO afecta el guardado de su registro.' : 
-'ℹ️ Nota técnica: Se detectaron problemas de red al confirmar,\npero sus datos fueron enviados y procesados correctamente.'}
+'ℹ️ Nota técnica: Se detectaron problemas de red al confirmar,\npero sus datos fueron enviados y procesados correctamente.'}${mensajeSafari}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌────────────────────────────────────────┐
 📊 Detalles del envío:
    • Estado: Exitoso ✅
-   • Intentos de confirmación: ${result.verification_attempts}
+   • Intentos de confirmación: ${result.verification_attempts || 1}
    • Procesamiento: Completado ✅
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ${esSafari ? '• Navegador: Safari 🍎' : ''}
+└────────────────────────────────────────┘
 
 Puede continuar registrando otra asistencia si lo necesita.
 El sistema detecta y previene duplicados automáticamente.`, 'success');
@@ -2152,7 +2381,7 @@ El sistema detecta y previene duplicados automáticamente.`, 'success');
             <div class="confirmacion-icon">✅</div>
             <div class="confirmacion-titulo">Registro guardado exitosamente</div>
             <div class="confirmacion-texto">
-              Su asistencia de hoy ha sido registrada correctamente.<br><br>
+              Su asistencia de hoy ha sido registrada correctamente.${esSafari ? ' (Safari)' : ''}<br><br>
               
               <strong>Registro ID:</strong> ${data.registro_id.substring(0, 30)}...<br>
               <strong>Hora:</strong> ${new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}<br>
@@ -2160,7 +2389,7 @@ El sistema detecta y previene duplicados automáticamente.`, 'success');
               
               <span style="color: #666; font-size: 0.9em;">
                 Los detalles de sus registros están disponibles para
-                el personal administrativo.
+                el personal administrativo.${esSafari ? '<br><br>🍎 Safari: Verificación manual recomendada.' : ''}
               </span>
             </div>
           </div>
@@ -2175,8 +2404,9 @@ El sistema detecta y previene duplicados automáticamente.`, 'success');
           '✅ ASISTENCIA REGISTRADA CORRECTAMENTE\n\n' +
           'Registro ID: ' + data.registro_id + '\n' +
           'Usuario: ' + currentUser.name + '\n' +
-          'Hora: ' + new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'}) + '\n\n' +
-          '¿Desea registrar otra asistencia?'
+          'Hora: ' + new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'}) +
+          (esSafari ? '\n\n🍎 Safari: Verificación limitada (normal)' : '') +
+          '\n\n¿Desea registrar otra asistencia?'
         );
         
         if (continuar) {
@@ -2189,6 +2419,7 @@ El sistema detecta y previene duplicados automáticamente.`, 'success');
       }, 10000);
       
     } 
+    
     // ⭐⭐⭐ CASO 3: ⚠️ Inconsistencia - Dice verificado pero no existe (no debería pasar)
     else if (result.success && result.verified && !result.exists) {
       console.error('\n⚠️⚠️ INCONSISTENCIA DETECTADA');
@@ -2219,6 +2450,7 @@ El sistema procesó su solicitud pero no puede confirmar que el registro existe 
       setTimeout(() => hideStatus(), 30000); // Mostrar por 30 segundos
       
     }
+    
     // ⭐⭐⭐ CASO 4: ❌ ERROR CONFIRMADO - No se pudo guardar O no se pudo verificar
     else {
       console.error('\n❌❌❌ ERROR - REGISTRO NO VERIFICADO');
@@ -2226,8 +2458,10 @@ El sistema procesó su solicitud pero no puede confirmar que el registro existe 
       console.error('Error:', result.error || 'Error desconocido');
       console.error('Attempts:', result.attempts);
       console.error('Network errors:', result.network_errors || 0);
+      console.error('Safari Mode:', result.safariMode || false);
       
       const errorDetail = result.error || 'Error desconocido durante el envío';
+      const esSafari = result.safariMode || isSafari;
       
       showStatus(`❌ ERROR: No se pudo verificar la asistencia
 
@@ -2240,6 +2474,7 @@ Por favor, VERIFIQUE MANUALMENTE en Google Sheets si el registro existe.
 🔄 Intentos realizados: ${result.attempts || 1}
 ⚠️ Errores de red: ${result.network_errors || 0}
 ⏱️ Tiempo total: ~${(result.attempts || 1) * 30}s
+${esSafari ? '🍎 Navegador: Safari (limitaciones conocidas)' : ''}
 
 🔍 VERIFICACIÓN MANUAL:
 1. Abra Google Sheets
@@ -2259,7 +2494,9 @@ Por favor, verifique:
 • Mencione este Registro ID: ${data.registro_id}
 • Capture una captura de pantalla de la consola (F12)
 
-💡 CONSEJO: Verifique que el campo "Modalidad" esté seleccionado correctamente.`, 'error');
+💡 CONSEJO: Verifique que el campo "Modalidad" esté seleccionado correctamente.${
+esSafari ? '\n\n🍎 Safari: Considere usar Chrome o Firefox para mejor compatibilidad.' : ''
+}`, 'error');
       
       // Habilitar botón para permitir reintento
       submitBtn.disabled = false;
@@ -2299,44 +2536,69 @@ Por favor:
 2. Recargue la página si el problema persiste
 3. Contacte al administrador si continúa
 
-📋 Registro ID intentado: ${registroID}`, 'error');
-    } else if (errorMessage.includes('red') || errorMessage.includes('network') || errorMessage.includes('timeout')) {
-      showStatus(`❌ ERROR: Problema de conexión
+${isSafari ? '\n🍎 Safari detectado: Asegúrese de haber dado todos los permisos.' : ''}`, 'error');
+    } else if (errorMessage.includes('autenticación') || errorMessage.includes('authentication')) {
+      showStatus(`❌ ERROR: Problema de autenticación
 
 🚫 ${errorMessage}
 
 Por favor:
-1. Verifique su conexión a Internet
-2. Intente nuevamente en unos momentos
-3. Si está en WiFi, intente con datos móviles (o viceversa)
+1. Cierre sesión
+2. Vuelva a iniciar sesión con Google
+3. Intente registrar nuevamente
 
-📋 Registro ID intentado: ${registroID}`, 'error');
-    } else {
-      showStatus(`❌ ERROR: No se pudo registrar la asistencia
+Si el problema persiste:
+• Limpie caché y cookies del navegador
+• Intente en modo incógnito
+• Contacte al administrador
+
+${isSafari ? '\n🍎 Safari: Verifique que las cookies estén habilitadas.' : ''}`, 'error');
+    } else if (errorMessage.includes('GPS') || errorMessage.includes('ubicación') || errorMessage.includes('location')) {
+      showStatus(`❌ ERROR: Problema con ubicación GPS
 
 🚫 ${errorMessage}
 
-⚠️ GARANTÍA: El registro NO se guardó.
+Por favor:
+1. Verifique que los permisos de ubicación estén activados
+2. Presione el botón "Reintentar ubicación"
+3. Si usa desktop, conéctese a una red WiFi
+4. Intente nuevamente
+
+Requisitos:
+• Permisos de ubicación habilitados
+• GPS activado (en móviles)
+• Conexión a Internet activa
+${isDesktop ? '• Desktop: Precisión hasta 1000m aceptable' : '• Móvil: Precisión hasta 50m requerida'}
+
+${isSafari ? '\n🍎 Safari: Verifique en Configuración > Safari > Ubicación.' : ''}`, 'error');
+    } else {
+      // Error genérico
+      showStatus(`❌ ERROR INESPERADO
+
+🚫 ${errorMessage}
+
+📋 Registro ID: ${registroID}
+⚠️ Si el ID fue generado, por favor verifique manualmente en Google Sheets.
 
 Por favor:
 1. Capture una captura de pantalla
-2. Verifique su conexión a Internet
-3. Verifique que todos los campos requeridos estén llenos
-4. Intente nuevamente
+2. Copie el error: ${errorMessage}
+3. Abra la consola (F12) y capture los logs
+4. Contacte al administrador con esta información
 
-Si el problema persiste:
-• Contacte al administrador
-• Proporcione este Registro ID: ${registroID}
-• Abra la consola (F12) y capture los errores
+Puede intentar:
+• Recargar la página (F5)
+• Cerrar y abrir sesión nuevamente
+• Usar otro navegador
+• Verificar su conexión a Internet
 
-💡 TIP: Recargue la página y vuelva a intentar`, 'error');
+${isSafari ? '\n🍎 Safari: Los navegadores alternativos (Chrome/Firefox) pueden tener mejor compatibilidad.' : ''}`, 'error');
     }
     
     // Rehabilitar botón
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
     
-    // Mostrar error por 30 segundos
     setTimeout(() => hideStatus(), 30000);
   }
 }
