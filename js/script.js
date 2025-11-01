@@ -2728,7 +2728,7 @@ function setupEventListeners() {
         if (this.value === 'salida') {
             salidaSection.classList.add('show');
             evidenciasSection.style.display = 'block';
-        } else if (this.value === 'permiso') {
+        } else if (this.value === 'permiso' || this.value === 'noabrioclinica' || this.value === 'festivo') {
             permisoSection.classList.add('show');
             permisoTextarea.required = true;
         } else if (this.value === 'otro') {
