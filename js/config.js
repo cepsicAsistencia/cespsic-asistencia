@@ -37,7 +37,7 @@ const AMBIENTES = {
     
     // Google Apps Script URL (Backend)
     GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyllBO0vTORygvLlbTeRWfNXz1_Dt1khrM2z_BUxbNM6jWqEGYDqaLnd7LJs9Fl9Q9X/exec',
-    
+
     // Firebase (misma configuración que pruebas, mismo proyecto)
     FIREBASE_CONFIG: {
       apiKey: "AIzaSyCcCqZ98oBrV1DrPjE6kYii6rOc2G_fiqI",
