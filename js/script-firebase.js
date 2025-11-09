@@ -727,70 +727,73 @@ function generateStudentFolderName() {
     return `${apellidoPaterno}_${apellidoMaterno}_${nombre}`.replace(/[^a-zA-Z0-9_]/g, '');
 }
 
-function fileToBase64(file) {
+async function fileToBase64(file) {
+    // Si el archivo es mayor a 500KB, comprimirlo primero
+    if (file.size > 500 * 1024) {
+        console.log(`⚠️ Archivo grande (${(file.size/1024).toFixed(1)}KB), comprimiendo...`);
+        file = await compressImage(file, 0.7); // Comprimir al 70% de calidad
+        console.log(`✅ Comprimido a ${(file.size/1024).toFixed(1)}KB`);
+    }
+    
     return new Promise((resolve, reject) => {
-        if (!file) {
-            reject(new Error('Archivo no válido'));
-            return;
-        }
-        
-        if (!file.type) {
-            reject(new Error('Archivo sin tipo MIME'));
-            return;
-        }
-        
-        if (file.size === 0) {
-            reject(new Error('Archivo vacío (0 bytes)'));
-            return;
-        }
-        
-        if (file.size > MAX_FILE_SIZE) {
-            reject(new Error(`Archivo muy grande: ${(file.size/1024/1024).toFixed(1)}MB`));
-            return;
-        }
-        
-        console.log(`📄 Convirtiendo ${file.name} a Base64...`);
-        
         const reader = new FileReader();
-        
-        reader.onload = () => {
-            try {
-                const result = reader.result;
-                if (!result || typeof result !== 'string') {
-                    reject(new Error('Error: resultado de lectura inválido'));
-                    return;
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// Nueva función para comprimir imágenes
+async function compressImage(file, quality = 0.7) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                
+                // Reducir dimensiones si es muy grande
+                let width = img.width;
+                let height = img.height;
+                const maxDimension = 1920;
+                
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = (height / width) * maxDimension;
+                        width = maxDimension;
+                    } else {
+                        width = (width / height) * maxDimension;
+                        height = maxDimension;
+                    }
                 }
                 
-                const base64 = result.split(',')[1];
-                if (!base64 || base64.length === 0) {
-                    reject(new Error('Error: conversión Base64 falló'));
-                    return;
-                }
+                canvas.width = width;
+                canvas.height = height;
                 
-                console.log(`✅ Base64 generado: ${(base64.length/1024).toFixed(1)}KB`);
-                resolve(base64);
-            } catch (error) {
-                console.error('❌ Error procesando Base64:', error);
-                reject(new Error(`Error al procesar: ${error.message}`));
-            }
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob(
+                    (blob) => {
+                        if (blob) {
+                            const compressedFile = new File([blob], file.name, {
+                                type: 'image/jpeg',
+                                lastModified: Date.now()
+                            });
+                            resolve(compressedFile);
+                        } else {
+                            reject(new Error('Error al comprimir imagen'));
+                        }
+                    },
+                    'image/jpeg',
+                    quality
+                );
+            };
+            img.onerror = () => reject(new Error('Error al cargar imagen'));
+            img.src = e.target.result;
         };
-        
-        reader.onerror = (error) => {
-            console.error('❌ Error leyendo archivo:', error);
-            reject(new Error(`Error al leer archivo: ${file.name}`));
-        };
-        
-        reader.onabort = () => {
-            console.error('❌ Lectura abortada');
-            reject(new Error('Lectura de archivo abortada'));
-        };
-        
-        try {
-            reader.readAsDataURL(file);
-        } catch (error) {
-            console.error('❌ Error iniciando lectura:', error);
-            reject(new Error(`No se pudo leer el archivo: ${error.message}`));
-        }
+        reader.onerror = () => reject(new Error('Error al leer archivo'));
+        reader.readAsDataURL(file);
     });
 }
 
