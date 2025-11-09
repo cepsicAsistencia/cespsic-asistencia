@@ -553,26 +553,30 @@ async function uploadEvidenciasToGoogleDrive() {
             }
             
             // Preparar datos para Google Apps Script (Drive)
-            const formData = new FormData();
-            formData.append('action', 'uploadEvidencia');
-            formData.append('fileName', fullFileName);
-            formData.append('fileData', base64Data);
-            formData.append('mimeType', file.type);
-            formData.append('fileSize', file.size.toString());
-            formData.append('studentFolder', generateStudentFolderName());
-            formData.append('userEmail', currentUser.email);
-            formData.append('timestamp', new Date().toISOString());
+            // Preparar datos para Google Apps Script (Drive)
+            const uploadData = new URLSearchParams({
+                action: 'uploadEvidencia',
+                fileName: fullFileName,
+                fileData: base64Data,
+                mimeType: file.type,
+                fileSize: file.size.toString(),
+                studentFolder: generateStudentFolderName(),
+                userEmail: currentUser.email,
+                timestamp: new Date().toISOString()
+            });
             
             console.log(`🚀 Enviando archivo ${i + 1} a Google Drive: ${fullFileName}`);
-            console.log(`   📦 Tamaño del archivo: ${(file.size/1024).toFixed(2)} KB`);
+            console.log(`   📦 Tamaño original: ${(file.size/1024).toFixed(2)} KB`);
             console.log(`   📤 Tamaño en base64: ${(base64Data.length/1024).toFixed(2)} KB`);
             
             // Subir a Google Drive usando Google Apps Script existente
             const uploadResult = await Promise.race([
                 fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
-                    body: formData
-                    // ⚠️ NO incluir Content-Type - FormData lo configura automáticamente
+                    body: uploadData,
+                    headers: {
+                        'Accept': 'application/json'
+                    }
                 }),
                 new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Timeout: El servidor no respondió en 30 segundos')), 30000)
@@ -728,11 +732,18 @@ function generateStudentFolderName() {
 }
 
 async function fileToBase64(file) {
-    // Si el archivo es mayor a 500KB, comprimirlo primero
-    if (file.size > 500 * 1024) {
+    // Comprimir SIEMPRE si es mayor a 300KB
+    if (file.size > 300 * 1024) {
         console.log(`⚠️ Archivo grande (${(file.size/1024).toFixed(1)}KB), comprimiendo...`);
-        file = await compressImage(file, 0.7); // Comprimir al 70% de calidad
+        file = await compressImage(file, 0.5); // Comprimir al 50% de calidad
         console.log(`✅ Comprimido a ${(file.size/1024).toFixed(1)}KB`);
+        
+        // Si aún es muy grande, comprimir más
+        if (file.size > 400 * 1024) {
+            console.log(`⚠️ Aún grande, comprimiendo más...`);
+            file = await compressImage(file, 0.3); // Comprimir al 30%
+            console.log(`✅ Comprimido a ${(file.size/1024).toFixed(1)}KB`);
+        }
     }
     
     return new Promise((resolve, reject) => {
@@ -744,7 +755,7 @@ async function fileToBase64(file) {
 }
 
 // Nueva función para comprimir imágenes
-async function compressImage(file, quality = 0.7) {
+async function compressImage(file, quality = 0.5) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -755,7 +766,7 @@ async function compressImage(file, quality = 0.7) {
                 // Reducir dimensiones si es muy grande
                 let width = img.width;
                 let height = img.height;
-                const maxDimension = 1920;
+                const maxDimension = 1600; // Reducido de 1920
                 
                 if (width > maxDimension || height > maxDimension) {
                     if (width > height) {
