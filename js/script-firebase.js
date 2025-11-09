@@ -553,7 +553,16 @@ async function uploadEvidenciasToGoogleDrive() {
             }
             
             // Preparar datos para Google Apps Script (Drive)
-            const uploadData = new URLSearchParams({
+            const uploadData = new FormData();
+            uploadData.append('action', 'uploadEvidencia');
+            uploadData.append('fileName', fullFileName);
+            uploadData.append('fileData', base64Data);  // ✅ FormData maneja archivos grandes
+            uploadData.append('mimeType', file.type);
+            uploadData.append('fileSize', file.size.toString());
+            uploadData.append('studentFolder', generateStudentFolderName());
+            uploadData.append('userEmail', currentUser.email);
+            uploadData.append('timestamp', new Date().toISOString());          
+            /*const uploadData = new URLSearchParams({
                 action: 'uploadEvidencia',  // ⬅️ Cambiado de 'upload_evidencia' a 'uploadEvidencia'
                 fileName: fullFileName,
                 fileData: base64Data,
@@ -561,12 +570,21 @@ async function uploadEvidenciasToGoogleDrive() {
                 studentFolder: generateStudentFolderName(),
                 userEmail: currentUser.email,
                 timestamp: new Date().toISOString()
-            });
+            });*/
             
             console.log(`🚀 Enviando archivo ${i + 1} a Google Drive: ${fullFileName}`);
             
             // Subir a Google Drive usando Google Apps Script existente
             const uploadResult = await Promise.race([
+                fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    body: uploadData  // ✅ Sin headers, FormData establece Content-Type automáticamente
+                }),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout: El servidor no respondió en 30 segundos')), 30000)
+                )
+            ]);
+            /*const uploadResult = await Promise.race([
                 fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
                     body: uploadData,
@@ -577,7 +595,7 @@ async function uploadEvidenciasToGoogleDrive() {
                 new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Timeout: El servidor no respondió en 30 segundos')), 30000)
                 )
-            ]);
+            ]);*/
             
             if (!uploadResult.ok) {
                 throw new Error(`Error HTTP ${uploadResult.status}: ${uploadResult.statusText}`);
