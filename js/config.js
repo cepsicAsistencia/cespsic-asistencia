@@ -4,7 +4,7 @@
 
 // 🎯 SELECCIONAR AMBIENTE (solo cambia esta variable)
 // Valores permitidos: 'PRUEBAS' o 'PRODUCCION'
-const AMBIENTE_ACTUAL = 'PRODUCCIÓN';  // 👈 Cambia aquí entre 'PRUEBAS' o 'PRODUCCION'
+const AMBIENTE_ACTUAL = 'PRODUCCION';  // 👈 Cambia aquí entre 'PRUEBAS' o 'PRODUCCION'
 
 // ========== CONFIGURACIÓN DE AMBIENTES ==========
 const AMBIENTES = {
