@@ -553,26 +553,26 @@ async function uploadEvidenciasToGoogleDrive() {
             }
             
             // Preparar datos para Google Apps Script (Drive)
-            const uploadData = new URLSearchParams({
-                action: 'uploadEvidencia',  // ⬅️ Cambiado de 'upload_evidencia' a 'uploadEvidencia'
-                fileName: fullFileName,
-                fileData: base64Data,
-                mimeType: file.type,
-                studentFolder: generateStudentFolderName(),
-                userEmail: currentUser.email,
-                timestamp: new Date().toISOString()
-            });
+            const formData = new FormData();
+            formData.append('action', 'uploadEvidencia');
+            formData.append('fileName', fullFileName);
+            formData.append('fileData', base64Data);
+            formData.append('mimeType', file.type);
+            formData.append('fileSize', file.size.toString());
+            formData.append('studentFolder', generateStudentFolderName());
+            formData.append('userEmail', currentUser.email);
+            formData.append('timestamp', new Date().toISOString());
             
             console.log(`🚀 Enviando archivo ${i + 1} a Google Drive: ${fullFileName}`);
+            console.log(`   📦 Tamaño del archivo: ${(file.size/1024).toFixed(2)} KB`);
+            console.log(`   📤 Tamaño en base64: ${(base64Data.length/1024).toFixed(2)} KB`);
             
             // Subir a Google Drive usando Google Apps Script existente
             const uploadResult = await Promise.race([
                 fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
-                    body: uploadData,
-                    headers: {
-                        'Accept': 'application/json'
-                    }
+                    body: formData
+                    // ⚠️ NO incluir Content-Type - FormData lo configura automáticamente
                 }),
                 new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Timeout: El servidor no respondió en 30 segundos')), 30000)
