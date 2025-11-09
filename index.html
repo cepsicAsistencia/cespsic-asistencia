@@ -5,16 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Asistencia - CESPSIC</title>
     
-    <!-- Google Sign-In API -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-	<!-- PRODUCCION -->
-    <meta name="google-signin-client_id" content="799841037062-kal4vump3frc2f8d33bnp4clc9amdnng.apps.googleusercontent.com">
-	<!-- PRUEBAS -->
-	<!-- meta name="google-signin-client_id" content="154864030871-ck4l5krb7qm68kmp6a7rcq7h072ldm6g.apps.googleusercontent.com" -->
-    
     <!-- CSS -->
     <link rel="stylesheet" href="css/styles.css">
-</head>
+    
+    <!-- 🔥 NUEVO: Firebase Config (antes del script principal) -->
+    <script type="module" src="js/firebase-config.js"></script>
+    
+    <!-- 🔥 NUEVO: Script principal como módulo -->
+    <script type="module" src="js/script-firebase.js"></script>
+</head>	
 <body>
     <div class="container">
         <div class="header">
@@ -23,7 +22,7 @@
 				<img src="https://lh3.googleusercontent.com/d/12tYxfzWgy3BVYjadXOEKlX5-uSsxIrBt" alt="CESPSIC" class="logo">
 				<img src="https://lh3.googleusercontent.com/d/1tR9QzPGbydb_qjDkZOKsoNU6_xIBGQP2" alt="Facultad de Psicología" class="logo">
             </div>
-            <h1>Servicio de atención psicológica, rescatando la inclusión del psicólogo a través del Centro de Servicios Psicológicos a la Comunidad (CESPSIC) v. 1.22</h1>
+            <h1>Servicio de atención psicológica, rescatando la inclusión del psicólogo a través del Centro de Servicios Psicológicos a la Comunidad (CESPSIC) v. 1.34</h1>
         </div>
 
         <!-- Sección de Autenticación -->
@@ -226,8 +225,8 @@
                     <!-- Campos condicionales para Permiso y Otro -->
                     <div id="permiso_detalle_section" class="conditional-field">
                         <div class="form-group">
-                            <label for="permiso_detalle">Especifique el motivo del permiso / día festivo / No abrío la clínica <span class="required">*</span></label>
-                            <textarea id="permiso_detalle" name="permiso_detalle" rows="3" placeholder="Describa el motivo..."></textarea>
+                            <label for="permiso_detalle">Especifique el motivo del permiso <span class="required">*</span></label>
+                            <textarea id="permiso_detalle" name="permiso_detalle" rows="3" placeholder="Describa el motivo del permiso..."></textarea>
                         </div>
                     </div>
 
@@ -377,6 +376,6 @@
     </div>
 
     <!-- JavaScript -->
-    <script src="js/script.js"></script>
+    <!-- <script src="js/script.js"></script> -->
 </body>
 </html>
