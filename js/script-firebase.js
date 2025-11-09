@@ -207,12 +207,17 @@ async function requestAuthentication() {
         
         const result = await signInWithPopup(auth, provider);
         
+        // Obtener el Google User ID real del proveedor de Google
+        const googleUserID = result.user.providerData.find(p => p.providerId === 'google.com')?.uid || result.user.uid;
+        
         currentUser = {
-            id: result.user.uid,
+            id: googleUserID,                    // ✅ Google User ID real
             email: result.user.email,
             name: result.user.displayName,
             picture: result.user.photoURL
         };
+        
+        console.log('🆔 Google User ID:', googleUserID);
         
         isAuthenticated = true;
         document.getElementById('email').value = currentUser.email;
