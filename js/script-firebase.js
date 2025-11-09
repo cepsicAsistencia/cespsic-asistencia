@@ -543,69 +543,41 @@ async function uploadEvidenciasToGoogleDrive() {
             }
             
             // Convertir a Base64
-            /*let base64Data;
+            let base64Data;
             try {
                 base64Data = await fileToBase64(file);
                 console.log(`✅ Conversión Base64 exitosa: ${(base64Data.length/1024).toFixed(1)}KB`);
             } catch (b64Error) {
                 console.error(`❌ Error en conversión Base64:`, b64Error);
                 throw new Error(`Error al procesar la imagen: ${b64Error.message}`);
-            }*/
-            
-            // 🔧 COMPRIMIR imagen si es muy grande
-            let base64Data;
-            let shouldCompress = file.size > 500 * 1024; // Comprimir si > 500KB
-            
-            if (shouldCompress) {
-                console.log(`   🗜️ Comprimiendo (${(file.size/1024).toFixed(0)}KB)...`);
-                try {
-                    base64Data = await compressImage(file, 800);
-                } catch (compressError) {
-                    console.warn(`   ⚠️ Error al comprimir, usando original`);
-                    base64Data = await fileToBase64(file);
-                }
-            } else {
-                base64Data = await fileToBase64(file);
-                console.log(`   ✅ Base64: ${(base64Data.length/1024/1.37).toFixed(1)}KB`);
             }
             
-            // 🔧 USAR URLSearchParams (compatible con backend antiguo)
-            const uploadParams = {
-                action: 'uploadEvidencia',
+            // Preparar datos para Google Apps Script (Drive)
+            const uploadData = new URLSearchParams({
+                action: 'uploadEvidencia',  // ⬅️ Cambiado de 'upload_evidencia' a 'uploadEvidencia'
                 fileName: fullFileName,
                 fileData: base64Data,
                 mimeType: file.type,
-                fileSize: file.size.toString(),
                 studentFolder: generateStudentFolderName(),
                 userEmail: currentUser.email,
                 timestamp: new Date().toISOString()
-            };
+            });
             
-            // Verificar tamaño
-            const estimatedSize = JSON.stringify(uploadParams).length;
-            console.log(`   📦 Payload: ${(estimatedSize/1024).toFixed(0)}KB`);
+            console.log(`🚀 Enviando archivo ${i + 1} a Google Drive: ${fullFileName}`);
             
-            if (estimatedSize > 5 * 1024 * 1024) {
-                throw new Error(`Archivo muy grande (${(estimatedSize/1024/1024).toFixed(1)}MB). Máx: 5MB`);
-            }
-            
-            const uploadData = new URLSearchParams(uploadParams);
-            
-            console.log(`   🚀 Enviando ${i + 1}/${selectedFiles.length}: ${fullFileName}`);
-            
-            // Subir a Google Drive
+            // Subir a Google Drive usando Google Apps Script existente
             const uploadResult = await Promise.race([
                 fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
+                    body: uploadData,
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: uploadData
+                        'Accept': 'application/json'
+                    }
                 }),
                 new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Timeout: >30s')), 30000)
+                    setTimeout(() => reject(new Error('Timeout: El servidor no respondió en 30 segundos')), 30000)
                 )
-            ]);        
+            ]);
             
             if (!uploadResult.ok) {
                 throw new Error(`Error HTTP ${uploadResult.status}: ${uploadResult.statusText}`);
@@ -629,8 +601,7 @@ async function uploadEvidenciasToGoogleDrive() {
                     driveFileId: result.file_id || null,
                     uploadTime: new Date().toISOString(),
                     uploadStatus: 'SUCCESS',
-                    storage: 'Google Drive',
-                    compressed: shouldCompress  // ⬅️ NUEVO
+                    storage: 'Google Drive'
                 });
                 
                 console.log(`✅ Archivo ${i+1}/${selectedFiles.length} subido exitosamente a Drive: ${fullFileName}`);
@@ -820,66 +791,6 @@ function fileToBase64(file) {
             console.error('❌ Error iniciando lectura:', error);
             reject(new Error(`No se pudo leer el archivo: ${error.message}`));
         }
-    });
-}
-
-// ========== COMPRIMIR IMAGEN ==========
-/**
- * Comprimir imagen usando Canvas
- * @param {File} file - Archivo de imagen a comprimir
- * @param {number} maxSizeKB - Tamaño máximo deseado en KB
- * @returns {Promise<string>} - Base64 de la imagen comprimida
- */
-async function compressImage(file, maxSizeKB = 800) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        
-        reader.onload = function(e) {
-            const img = new Image();
-            
-            img.onload = function() {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-                
-                // Calcular nuevo tamaño manteniendo aspect ratio
-                const maxDimension = 1920;
-                if (width > height && width > maxDimension) {
-                    height = (height * maxDimension) / width;
-                    width = maxDimension;
-                } else if (height > maxDimension) {
-                    width = (width * maxDimension) / height;
-                    height = maxDimension;
-                }
-                
-                canvas.width = width;
-                canvas.height = height;
-                
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                // Intentar diferentes niveles de calidad
-                let quality = 0.8;
-                let compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-                
-                // Reducir calidad hasta alcanzar el tamaño deseado
-                while (compressedBase64.length > maxSizeKB * 1024 * 1.37 && quality > 0.1) {
-                    quality -= 0.1;
-                    compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-                }
-                
-                console.log(`📦 Comprimida: ${width}x${height}, Q:${(quality * 100).toFixed(0)}%, ${(compressedBase64.length / 1024 / 1.37).toFixed(0)}KB`);
-                
-                const base64Data = compressedBase64.split(',')[1];
-                resolve(base64Data);
-            };
-            
-            img.onerror = () => reject(new Error('Error al cargar imagen'));
-            img.src = e.target.result;
-        };
-        
-        reader.onerror = () => reject(new Error('Error al leer archivo'));
-        reader.readAsDataURL(file);
     });
 }
 
