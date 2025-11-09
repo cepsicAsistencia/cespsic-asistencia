@@ -553,21 +553,17 @@ async function uploadEvidenciasToGoogleDrive() {
             }
             
             // Preparar datos para Google Apps Script (Drive)
-            // Preparar datos para Google Apps Script (Drive)
             const uploadData = new URLSearchParams({
-                action: 'uploadEvidencia',
+                action: 'uploadEvidencia',  // ⬅️ Cambiado de 'upload_evidencia' a 'uploadEvidencia'
                 fileName: fullFileName,
                 fileData: base64Data,
                 mimeType: file.type,
-                fileSize: file.size.toString(),
                 studentFolder: generateStudentFolderName(),
                 userEmail: currentUser.email,
                 timestamp: new Date().toISOString()
             });
             
             console.log(`🚀 Enviando archivo ${i + 1} a Google Drive: ${fullFileName}`);
-            console.log(`   📦 Tamaño original: ${(file.size/1024).toFixed(2)} KB`);
-            console.log(`   📤 Tamaño en base64: ${(base64Data.length/1024).toFixed(2)} KB`);
             
             // Subir a Google Drive usando Google Apps Script existente
             const uploadResult = await Promise.race([
@@ -731,80 +727,70 @@ function generateStudentFolderName() {
     return `${apellidoPaterno}_${apellidoMaterno}_${nombre}`.replace(/[^a-zA-Z0-9_]/g, '');
 }
 
-async function fileToBase64(file) {
-    // Comprimir SIEMPRE si es mayor a 300KB
-    if (file.size > 300 * 1024) {
-        console.log(`⚠️ Archivo grande (${(file.size/1024).toFixed(1)}KB), comprimiendo...`);
-        file = await compressImage(file, 0.5); // Comprimir al 50% de calidad
-        console.log(`✅ Comprimido a ${(file.size/1024).toFixed(1)}KB`);
-        
-        // Si aún es muy grande, comprimir más
-        if (file.size > 400 * 1024) {
-            console.log(`⚠️ Aún grande, comprimiendo más...`);
-            file = await compressImage(file, 0.3); // Comprimir al 30%
-            console.log(`✅ Comprimido a ${(file.size/1024).toFixed(1)}KB`);
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        if (!file) {
+            reject(new Error('Archivo no válido'));
+            return;
         }
-    }
-    
-    return new Promise((resolve, reject) => {
+        
+        if (!file.type) {
+            reject(new Error('Archivo sin tipo MIME'));
+            return;
+        }
+        
+        if (file.size === 0) {
+            reject(new Error('Archivo vacío (0 bytes)'));
+            return;
+        }
+        
+        if (file.size > MAX_FILE_SIZE) {
+            reject(new Error(`Archivo muy grande: ${(file.size/1024/1024).toFixed(1)}MB`));
+            return;
+        }
+        
+        console.log(`📄 Convirtiendo ${file.name} a Base64...`);
+        
         const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-}
-
-// Nueva función para comprimir imágenes
-async function compressImage(file, quality = 0.5) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                
-                // Reducir dimensiones si es muy grande
-                let width = img.width;
-                let height = img.height;
-                const maxDimension = 1600; // Reducido de 1920
-                
-                if (width > maxDimension || height > maxDimension) {
-                    if (width > height) {
-                        height = (height / width) * maxDimension;
-                        width = maxDimension;
-                    } else {
-                        width = (width / height) * maxDimension;
-                        height = maxDimension;
-                    }
+        
+        reader.onload = () => {
+            try {
+                const result = reader.result;
+                if (!result || typeof result !== 'string') {
+                    reject(new Error('Error: resultado de lectura inválido'));
+                    return;
                 }
                 
-                canvas.width = width;
-                canvas.height = height;
+                const base64 = result.split(',')[1];
+                if (!base64 || base64.length === 0) {
+                    reject(new Error('Error: conversión Base64 falló'));
+                    return;
+                }
                 
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                canvas.toBlob(
-                    (blob) => {
-                        if (blob) {
-                            const compressedFile = new File([blob], file.name, {
-                                type: 'image/jpeg',
-                                lastModified: Date.now()
-                            });
-                            resolve(compressedFile);
-                        } else {
-                            reject(new Error('Error al comprimir imagen'));
-                        }
-                    },
-                    'image/jpeg',
-                    quality
-                );
-            };
-            img.onerror = () => reject(new Error('Error al cargar imagen'));
-            img.src = e.target.result;
+                console.log(`✅ Base64 generado: ${(base64.length/1024).toFixed(1)}KB`);
+                resolve(base64);
+            } catch (error) {
+                console.error('❌ Error procesando Base64:', error);
+                reject(new Error(`Error al procesar: ${error.message}`));
+            }
         };
-        reader.onerror = () => reject(new Error('Error al leer archivo'));
-        reader.readAsDataURL(file);
+        
+        reader.onerror = (error) => {
+            console.error('❌ Error leyendo archivo:', error);
+            reject(new Error(`Error al leer archivo: ${file.name}`));
+        };
+        
+        reader.onabort = () => {
+            console.error('❌ Lectura abortada');
+            reject(new Error('Lectura de archivo abortada'));
+        };
+        
+        try {
+            reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('❌ Error iniciando lectura:', error);
+            reject(new Error(`No se pudo leer el archivo: ${error.message}`));
+        }
     });
 }
 
