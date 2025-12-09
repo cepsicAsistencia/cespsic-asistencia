@@ -149,22 +149,39 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     setupEvidenciasHandlers();
     updateCurrentTime();
-    setInterval(updateCurrentTime, 1000);
+    //se comentarizo la siguiente linea por que se habilito el cambiar la hora asi que ya no ocupa estarse refrescando por que se actualiza siempre a la hora actual
+    //setInterval(updateCurrentTime, 1000);
 });
 
 function initializeForm() {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
+    // Obtener fecha y hora actual en zona horaria America/Mazatlan
+    const now = new Date();
+    const options = { timeZone: 'America/Mazatlan' };
+    
+    // Convertir a timezone local
+    const mazatlanDate = new Date(now.toLocaleString('en-US', options));
+    
+    const year = mazatlanDate.getFullYear();
+    const month = String(mazatlanDate.getMonth() + 1).padStart(2, '0');
+    const day = String(mazatlanDate.getDate()).padStart(2, '0');
+    
+    // Establecer en formato yyyy-mm-dd para el input type="date"
     document.getElementById('fecha').value = `${year}-${month}-${day}`;
     updateCurrentTime();
 }
 
 function updateCurrentTime() {
+    // Obtener hora actual en zona horaria America/Mazatlan
     const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const options = { timeZone: 'America/Mazatlan' };
+    
+    // Convertir a timezone local
+    const mazatlanDate = new Date(now.toLocaleString('en-US', options));
+    
+    const hours = String(mazatlanDate.getHours()).padStart(2, '0');
+    const minutes = String(mazatlanDate.getMinutes()).padStart(2, '0');
+    
+    // Establecer en formato 24 horas para el input type="time"
     document.getElementById('hora').value = `${hours}:${minutes}`;
 }
 
@@ -358,7 +375,16 @@ async function handleSubmit(e) {
             // IDs y timestamps
             registro_id: registroID,
             timestamp: serverTimestamp(),
-            fecha_creacion: new Date().toISOString(),
+            fecha_creacion: new Date().toLocaleString('en-US', { 
+                timeZone: 'America/Mazatlan',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }).replace(/(\d+)\/(\d+)\/(\d+),?\s*(\d+):(\d+):(\d+)/, '$3-$1-$2 $4:$5:$6'),
             
             // Usuario
             email: currentUser.email,
@@ -431,7 +457,13 @@ async function handleSubmit(e) {
         const docRef = { id: resultado.docId }; // Para compatibilidad con código existente
         
         // 4. Mostrar confirmación
-        const hora = new Date().toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'});
+        const now = new Date();
+        const hora = now.toLocaleTimeString('es-MX', {
+            timeZone: 'America/Mazatlan',
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true
+        });
         
         showStatus(`✅✅✅ ASISTENCIA REGISTRADA
 
@@ -822,20 +854,25 @@ async function mostrarRegistrosDelDia() {
     registrosCount.style.background = '#6c757d';
     
     try {
-        // Obtener fecha de hoy
-        const hoy = new Date();
-        const año = hoy.getFullYear();
-        const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-        const dia = String(hoy.getDate()).padStart(2, '0');
-        const fechaHoy = `${año}-${mes}-${dia}`;
+        // Obtener fecha del campo seleccionado (no siempre hoy)
+        const fechaSeleccionada = document.getElementById('fecha').value;
         
-        console.log('📊 Cargando registros de:', fechaHoy, 'para:', currentUser.email);
+        console.log('📊 Cargando registros de:', fechaSeleccionada, 'para:', currentUser.email);
+        
+        // Actualizar título con la fecha seleccionada
+        const tituloElement = document.getElementById('registros-titulo');
+        if (tituloElement) {
+            const fechaObj = new Date(fechaSeleccionada + 'T00:00:00');
+            const opciones = { year: 'numeric', month: 'long', day: 'numeric' };
+            const fechaFormateada = fechaObj.toLocaleDateString('es-MX', opciones);
+            tituloElement.textContent = `📊 Mis Registros del ${fechaFormateada}`;
+        }
         
         // Query a Firestore
         const q = query(
             collection(db, 'asistencias'),
             where('email', '==', currentUser.email),
-            where('fecha', '==', fechaHoy)
+            where('fecha', '==', fechaSeleccionada)
         );
         
         const querySnapshot = await getDocs(q);
@@ -863,7 +900,7 @@ async function mostrarRegistrosDelDia() {
             registrosLista.innerHTML = `
                 <div class="registro-vacio">
                     <div style="font-size: 2em; margin-bottom: 10px;">📝</div>
-                    <div><strong>No hay registros para hoy</strong></div>
+                    <div><strong>No hay registros para esta fecha</strong></div>
                     <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
                         Cuando registre su primera asistencia aparecerá aquí
                     </div>
@@ -1598,6 +1635,14 @@ function setupEventListeners() {
 
     // Submit del formulario
     document.getElementById('attendanceForm').addEventListener('submit', handleSubmit);
+
+    // Event listener para recargar registros cuando cambia la fecha
+    document.getElementById('fecha').addEventListener('change', function() {
+        if (isAuthenticated && currentUser) {
+            console.log('📅 Fecha cambiada, recargando registros...');
+            mostrarRegistrosDelDia();
+        }
+    });
 }
 
 // ========== EXPORTAR FUNCIONES GLOBALES ==========
